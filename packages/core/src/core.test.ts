@@ -92,6 +92,7 @@ function baseState(): GameState {
     subtasks: [],
     goalId: null,
     requiresQuestId: null,
+    delegatedTo: null,
     proofRequired: false,
     mandatory: true,
     consequences: "",

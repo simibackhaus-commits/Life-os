@@ -11,6 +11,16 @@ import {
   type ShopItem,
   type ShopItemDraftInput,
   type LifetimeStats,
+  GoalDraftSchema,
+  FinanceEntrySchema,
+  WorkoutSchema,
+  type Goal,
+  type GoalDraft,
+  type GoalDraftInput,
+  type FinanceEntry,
+  type FinanceEntryInput,
+  type Workout,
+  type WorkoutInput,
   type UnlockCheck,
 } from "@life-os/core";
 
@@ -23,6 +33,85 @@ interface ShopItemRow {
   active: boolean;
   created_at: string;
 }
+
+interface GoalRow {
+  id: string;
+  title: string;
+  description: string;
+  area: Goal["area"];
+  target_value: number | string | null;
+  current_value: number | string;
+  unit: string | null;
+  due_date: string | null;
+  status: Goal["status"];
+  created_at: string;
+}
+const goalFromRow = (r: GoalRow): Goal => ({
+  id: r.id,
+  title: r.title,
+  description: r.description,
+  area: (["business", "sport", "finanzen"].includes(r.area) ? r.area : "allgemein") as Goal["area"],
+  targetValue: r.target_value === null ? null : Number(r.target_value),
+  currentValue: Number(r.current_value),
+  unit: r.unit,
+  dueDate: r.due_date,
+  status: r.status,
+  createdAt: r.created_at,
+});
+const goalToRow = (d: GoalDraft) => ({
+  title: d.title,
+  description: d.description,
+  area: d.area,
+  target_value: d.targetValue,
+  current_value: d.currentValue,
+  unit: d.unit,
+  due_date: d.dueDate,
+  status: d.status,
+});
+
+interface WorkoutRow {
+  id: string;
+  date: string;
+  kind: Workout["kind"];
+  duration_min: number;
+  distance_km: number | string | null;
+  intensity: number;
+  exercises: Workout["exercises"];
+  note: string;
+  created_at: string;
+}
+const workoutFromRow = (r: WorkoutRow): Workout => ({
+  id: r.id,
+  date: r.date,
+  kind: r.kind,
+  durationMin: r.duration_min,
+  distanceKm: r.distance_km === null ? null : Number(r.distance_km),
+  intensity: r.intensity,
+  exercises: r.exercises,
+  note: r.note,
+  createdAt: r.created_at,
+});
+
+interface FinanceRow {
+  id: string;
+  kind: FinanceEntry["kind"];
+  amount: number | string;
+  category: string;
+  note: string;
+  date: string;
+  goal_id: string | null;
+  created_at: string;
+}
+const financeFromRow = (r: FinanceRow): FinanceEntry => ({
+  id: r.id,
+  kind: r.kind,
+  amount: Number(r.amount),
+  category: r.category,
+  note: r.note,
+  date: r.date,
+  goalId: r.goal_id,
+  createdAt: r.created_at,
+});
 
 interface PurchaseRow {
   id: string;
@@ -188,7 +277,7 @@ export class CloudStore implements DataStore {
   async load(): Promise<Snapshot> {
     try {
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-      const [ch, quests, inst, events, cases, msgs, items, buys, skills, lifetime] = await Promise.all([
+      const [ch, quests, inst, events, cases, msgs, items, buys, skills, lifetime, goals, workouts, finance] = await Promise.all([
         this.sb.from("characters").select("*").eq("user_id", this.userId).single(),
         this.sb.from("quests").select("*").neq("status", "archiviert").order("created_at"),
         this.sb.from("quest_instances").select("*").or(`completed_at.gte.${since},completed_at.is.null`),
@@ -199,6 +288,9 @@ export class CloudStore implements DataStore {
         this.sb.from("shop_purchases").select("*").order("purchased_at", { ascending: false }).limit(100),
         this.sb.from("skills_unlocked").select("skill_id"),
         this.sb.rpc("lifetime_stats"),
+        this.sb.from("goals").select("*").neq("status", "archiviert").order("created_at"),
+        this.sb.from("workouts").select("*").order("date", { ascending: false }).limit(300),
+        this.sb.from("finance_entries").select("*").order("date", { ascending: false }).limit(500),
       ]);
       this.last = {
         character: characterFromRow(unwrap<CharacterRow>(ch)),
@@ -229,6 +321,10 @@ export class CloudStore implements DataStore {
         })),
         skills: ((skills.data ?? []) as Array<{ skill_id: string }>).map((r) => r.skill_id),
         lifetime: (lifetime.data as LifetimeStats | null) ?? undefined,
+        // Modul-Tabellen aus späteren Migrationen: fehlen sie, bleibt der Rest nutzbar.
+        goals: ((goals.data ?? []) as GoalRow[]).map(goalFromRow),
+        workouts: ((workouts.data ?? []) as WorkoutRow[]).map(workoutFromRow),
+        financeEntries: ((finance.data ?? []) as FinanceRow[]).map(financeFromRow),
       };
       if (this.syncState === "offline" && this.outbox.list().length === 0) this.setSync("synchron");
       return this.last;
@@ -394,8 +490,57 @@ export class CloudStore implements DataStore {
     return r.ok ? { ok: true } : { ok: false, reason: (r.reason ?? "unknown") as "unknown" };
   }
 
+  async createGoal(input: GoalDraftInput): Promise<Goal> {
+    const row = unwrap<GoalRow>(await this.sb.from("goals").insert(goalToRow(GoalDraftSchema.parse(input))).select().single());
+    this.emit();
+    return goalFromRow(row);
+  }
+
+  async updateGoal(id: string, patch: Partial<GoalDraftInput>) {
+    const cur = this.last?.goals.find((g) => g.id === id);
+    if (!cur) throw new Error("Ziel nicht gefunden");
+    // current_value pflegt bei Sparzielen der Datenbank-Trigger; hier nur mitschicken, wenn ausdrücklich geändert
+    const d = GoalDraftSchema.parse({ ...cur, ...patch });
+    const row = goalToRow(d);
+    if (patch.currentValue === undefined) delete (row as Partial<typeof row>).current_value;
+    unwrap(await this.sb.from("goals").update(row).eq("id", id));
+    this.emit();
+  }
+
+  async addFinanceEntry(input: FinanceEntryInput): Promise<FinanceEntry> {
+    const d = FinanceEntrySchema.parse(input);
+    const row = unwrap<FinanceRow>(
+      await this.sb.from("finance_entries").insert({ kind: d.kind, amount: d.amount, category: d.category, note: d.note, date: d.date, goal_id: d.goalId }).select().single(),
+    );
+    this.emit();
+    return financeFromRow(row);
+  }
+
+  async deleteFinanceEntry(id: string) {
+    unwrap(await this.sb.from("finance_entries").delete().eq("id", id));
+    this.emit();
+  }
+
+  async logWorkout(input: WorkoutInput): Promise<Workout> {
+    const d = WorkoutSchema.parse(input);
+    const row = unwrap<WorkoutRow>(
+      await this.sb
+        .from("workouts")
+        .insert({ date: d.date, kind: d.kind, duration_min: d.durationMin, distance_km: d.distanceKm, intensity: d.intensity, exercises: d.exercises, note: d.note })
+        .select()
+        .single(),
+    );
+    this.emit();
+    return workoutFromRow(row);
+  }
+
+  async deleteWorkout(id: string) {
+    unwrap(await this.sb.from("workouts").delete().eq("id", id));
+    this.emit();
+  }
+
   async exportData() {
-    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages", "shop_items", "shop_purchases", "skills_unlocked"];
+    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages", "shop_items", "shop_purchases", "skills_unlocked", "workouts", "finance_entries"];
     const out: Record<string, unknown> = { exportedAt: new Date().toISOString(), version: 1 };
     for (const t of tables) out[t] = unwrap(await this.sb.from(t).select("*"));
     return out;

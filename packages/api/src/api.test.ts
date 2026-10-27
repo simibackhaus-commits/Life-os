@@ -1,3 +1,4 @@
+import { goalProgress } from "@life-os/core";
 import { describe, expect, it } from "vitest";
 import { LocalStore, type KeyValueStorage } from "./local-store.ts";
 import { Outbox, type OutboxItem } from "./outbox.ts";
@@ -110,6 +111,33 @@ describe("LocalStore", () => {
     const month = calendarMonth(s, 2026, 11);
     expect(month.length % 7).toBe(0);
     expect(month.find((c) => c.date === "2026-11-03")?.open).toBe(2);
+  });
+
+  it("Module: Sparziel, Buchungen, Projekt mit Quests, Training", async () => {
+    const store = new LocalStore(new MemoryStorage());
+    const goal = await store.createGoal({ title: "Notgroschen", area: "finanzen", targetValue: 3000, unit: "€" });
+    const dep = await store.addFinanceEntry({ kind: "einzahlung", amount: 500, date: "2026-10-27", goalId: goal.id });
+    await store.addFinanceEntry({ kind: "ausgabe", amount: 30, category: "freizeit", date: "2026-10-27" });
+    let s = await store.load();
+    expect(s.goals[0]!.currentValue).toBe(500);
+    await store.deleteFinanceEntry(dep.id);
+    s = await store.load();
+    expect(s.goals[0]!.currentValue).toBe(0);
+    expect(s.financeEntries).toHaveLength(1);
+
+    const project = await store.createGoal({ title: "Website-Relaunch", area: "business" });
+    const t1 = await store.createQuest({ title: "Konzept", goalId: project.id });
+    await store.createQuest({ title: "Umsetzung", goalId: project.id, delegatedTo: "Agentur" });
+    await store.completeOccurrence({ questId: t1.id, occurrenceKey: "once", dueAt: null });
+    s = await store.load();
+    const linked = s.quests.filter((q) => q.goalId === project.id);
+    expect(goalProgress(s.goals[1]!, linked, "2026-10-27").label).toBe("1 von 2 Aufgaben");
+    expect(linked.find((q) => q.title === "Umsetzung")?.delegatedTo).toBe("Agentur");
+
+    await store.logWorkout({ date: "2026-10-27", kind: "laufen", durationMin: 30, distanceKm: 5 });
+    s = await store.load();
+    expect(s.workouts).toHaveLength(1);
+    await expect(store.logWorkout({ date: "2026-10-27", kind: "laufen", durationMin: 0 })).rejects.toThrow();
   });
 
   it("Quick-Add nutzt offline den Parser", async () => {

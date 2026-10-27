@@ -40,6 +40,9 @@ function Shell({ store }: { store: DataStore }) {
             ["skills", "Skilltree"],
             ["calendar", "Kalender"],
             ["stats", "Statistiken"],
+            ["career", "Karriere"],
+            ["fitness", "Fitness"],
+            ["finance", "Finanzen"],
           ] as const
         ).map(([name, title]) => (
           <Stack.Screen key={name} name={name} options={{ headerShown: true, title, headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.gold }} />

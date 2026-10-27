@@ -63,7 +63,10 @@ Edge Functions sind deployt (`--use-api`, ohne Docker). Ohne `ANTHROPIC_API_KEY`
 | Bosskämpfe (Trefferpunkte = Teilaufgaben) | FERTIG | Letzter Treffer schließt den Boss ab; Desktop im Browser geprüft (2 Treffer → +200 XP) |
 | Questketten (Voraussetzung) | FERTIG | Gesperrte Quests sind ausgeblendet; Server lehnt Abschluss ab (`quest_locked`) |
 | Erweiterte Gerichtsverhandlungen | GEPLANT | Braucht größtenteils die KI (zurückgestellt) |
-| Business-, Sport-, Finanzmodule | GEPLANT | Abschnitt 3 |
+| Finanzen (Sparziele, Meilensteine, Wochenrate, Budget nach Kategorie, Sparraten-Quest) | FERTIG | Einzahlung bucht per Trigger aufs Ziel (DB-Test), Desktop im Browser geprüft (800 € → 25 %-Meilenstein) |
+| Sport (Training erfassen, Rekorde, Belastung/Regeneration, Trainingspläne → Quests) | FERTIG | Training kann heutige Sport-Quests mit abhaken; Desktop im Browser geprüft (Kniebeuge-Rekord, +75 XP) |
+| Business (Projekte mit Aufgaben, Delegation, Fristen, Führungsroutinen) | FERTIG | Projektfortschritt aus verknüpften Quests; Desktop im Browser geprüft |
+| Module auf dem iPhone | FERTIG (Web-Vorschau) | Kompakte Erfassung: Einzahlen/Ausgabe, Training + Quest-Verknüpfung, Projektaufgaben |
 
 ## Phase 4 – Lebendige Spielwelt (GEPLANT)
 Hauptquartier, Avatar, Storysystem, Saison-Events, Habit Garden, Fokus-Dungeons, Animationen, externe Integrationen (Google/Outlook/Apple Calendar, Gmail, Strava, Garmin, Apple Health, WhatsApp Business API). Keine Integration gilt als fertig, bevor sie live getestet wurde.

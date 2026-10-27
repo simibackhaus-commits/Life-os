@@ -9,6 +9,9 @@ import { Dashboard } from "@/pages/Dashboard";
 import { AuthPage, CharacterPage, SettingsPage } from "@/pages/Other";
 import { QuestsPage } from "@/pages/Quests";
 import { CalendarPage } from "@/pages/Calendar";
+import { CareerPage } from "@/pages/Career";
+import { FinancePage } from "@/pages/Finance";
+import { FitnessPage } from "@/pages/Fitness";
 import { ShopPage } from "@/pages/Shop";
 import { SkilltreePage } from "@/pages/Skilltree";
 import { StatsPage } from "@/pages/Stats";
@@ -41,6 +44,9 @@ function Shell() {
         {page === "calendar" && <CalendarPage />}
         {page === "skills" && <SkilltreePage />}
         {page === "shop" && <ShopPage />}
+        {page === "career" && <CareerPage />}
+        {page === "fitness" && <FitnessPage />}
+        {page === "finance" && <FinancePage />}
         {page === "stats" && <StatsPage />}
         {page === "settings" && <SettingsPage />}
       </main>

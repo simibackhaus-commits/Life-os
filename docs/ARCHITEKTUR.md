@@ -53,5 +53,9 @@ Skills sollen spürbar sein, aber nicht manipulierbar: Freischalten nur über `u
 Achievements haben keine Spielwirkung und werden deshalb nur berechnet; damit Langzeitziele trotz geladenem Zeitfenster stimmen, liefert `lifetime_stats()` (security invoker → RLS) Gesamtzähler.
 Bosskampf = Quest vom Typ `boss`, Trefferpunkte = Teilaufgaben, keine eigene Tabelle. Questketten über `quests.requires_quest_id`; der Server lehnt Abschlüsse gesperrter Quests ab.
 
+## ADR-14 – Lebensbereich-Module ohne eigene Spielwirkung
+Business, Sport und Finanzen speichern Aufzeichnungen (`goals`, `workouts`, `finance_entries`), vergeben aber selbst keine XP/Coins – sonst bräuchte jede Eingabe eine eigene Serverprüfung gegen Missbrauch. Die Verbindung zum Spiel läuft über Quests: Projekte/Ziele sammeln Quests (`quests.goal_id`), Trainingspläne und Sparraten erzeugen wiederkehrende Quests, ein erfasstes Training kann heutige Sport-Quests abhaken (über `complete_quest_instance()`).
+Einzahlungen erhöhen den Zielstand per Datenbank-Trigger; Buchungen sind unveränderlich (löschen + neu), damit der Stand konsistent bleibt. Delegation ist ein Quest-Feld (`delegated_to`).
+
 ## ADR-10 – Datenbanktests ohne Docker
 Docker ist auf dem Entwicklungsrechner nicht immer aktiv. → Migrationen werden in Vitest gegen PGlite (Postgres als WASM) mit minimalem `auth`-Stub ausgeführt: Regelparität, Idempotenz, RLS, Spaltenrechte, Gerichtsgrenzen, Accountlöschung. Ersetzt keinen Test gegen echtes Supabase (Realtime, Auth, PostgREST) – der steht in der Roadmap.

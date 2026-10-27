@@ -10,3 +10,4 @@ export * from "./quickadd.ts";
 export * from "./shop.ts";
 export * from "./achievements.ts";
 export * from "./skills.ts";
+export * from "./modules.ts";

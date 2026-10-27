@@ -12,6 +12,15 @@ import {
   validateVerdict,
   RULEBOOK_VERSION,
   ShopItemDraftSchema,
+  GoalDraftSchema,
+  FinanceEntrySchema,
+  WorkoutSchema,
+  type Goal,
+  type GoalDraftInput,
+  type FinanceEntry,
+  type FinanceEntryInput,
+  type Workout,
+  type WorkoutInput,
   type Character,
   type Quest,
   type ShopItem,
@@ -46,7 +55,7 @@ function emptySnapshot(): Snapshot {
     coins: 0,
     attributeXp: {} as Character["attributeXp"],
   };
-  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [], shopItems: [], purchases: [], skills: [] };
+  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [], shopItems: [], purchases: [], skills: [], goals: [], workouts: [], financeEntries: [] };
 }
 
 /**
@@ -301,6 +310,54 @@ export class LocalStore implements DataStore {
     const { state, result } = unlockSkill(this.snap, skillId);
     if (result.ok) this.commit({ ...this.snap, skills: state.skills ?? [] });
     return result;
+  }
+
+  async createGoal(input: GoalDraftInput) {
+    const goal: Goal = { ...GoalDraftSchema.parse(input), id: this.uuid(), createdAt: this.now().toISOString() };
+    this.commit({ ...this.snap, goals: [...this.snap.goals, goal] });
+    return goal;
+  }
+
+  async updateGoal(id: string, patch: Partial<GoalDraftInput>) {
+    const cur = this.snap.goals.find((g) => g.id === id);
+    if (!cur) throw new Error("Ziel nicht gefunden");
+    const next: Goal = { ...cur, ...GoalDraftSchema.parse({ ...cur, ...patch }) };
+    this.commit({ ...this.snap, goals: this.snap.goals.map((g) => (g.id === id ? next : g)) });
+  }
+
+  async addFinanceEntry(input: FinanceEntryInput) {
+    const entry: FinanceEntry = { ...FinanceEntrySchema.parse(input), id: this.uuid(), createdAt: this.now().toISOString() };
+    if (entry.goalId && !this.snap.goals.some((g) => g.id === entry.goalId)) throw new Error("Sparziel nicht gefunden");
+    this.commit({
+      ...this.snap,
+      financeEntries: [entry, ...this.snap.financeEntries],
+      goals: this.adjustGoal(entry, 1),
+    });
+    return entry;
+  }
+
+  async deleteFinanceEntry(id: string) {
+    const entry = this.snap.financeEntries.find((e) => e.id === id);
+    if (!entry) return;
+    this.commit({ ...this.snap, financeEntries: this.snap.financeEntries.filter((e) => e.id !== id), goals: this.adjustGoal(entry, -1) });
+  }
+
+  /** Spiegel des Triggers sync_goal_from_finance(). */
+  private adjustGoal(entry: FinanceEntry, sign: 1 | -1): Goal[] {
+    if (entry.kind !== "einzahlung" || !entry.goalId) return this.snap.goals;
+    return this.snap.goals.map((g) =>
+      g.id === entry.goalId ? { ...g, currentValue: Math.max(0, Math.round((g.currentValue + sign * entry.amount) * 100) / 100) } : g,
+    );
+  }
+
+  async logWorkout(input: WorkoutInput) {
+    const w: Workout = { ...WorkoutSchema.parse(input), id: this.uuid(), createdAt: this.now().toISOString() };
+    this.commit({ ...this.snap, workouts: [w, ...this.snap.workouts] });
+    return w;
+  }
+
+  async deleteWorkout(id: string) {
+    this.commit({ ...this.snap, workouts: this.snap.workouts.filter((w) => w.id !== id) });
   }
 
   async exportData() {

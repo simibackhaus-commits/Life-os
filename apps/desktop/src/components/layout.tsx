@@ -26,7 +26,7 @@ import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";
 import { Badge, Card, CardTitle, Input } from "./ui/primitives";
 
-export type Page = "dashboard" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "stats" | "settings";
+export type Page = "dashboard" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "career" | "fitness" | "finance" | "stats" | "settings";
 
 const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: number }> = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} /> },
@@ -36,9 +36,9 @@ const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: numb
   { id: "skills", label: "Skilltree", icon: <Network size={17} /> },
   { id: "court", label: "Gericht", icon: <Gavel size={17} /> },
   { id: "shop", label: "Shop", icon: <ShoppingBag size={17} /> },
-  { id: null, label: "Karriere", icon: <Briefcase size={17} />, phase: 3 },
-  { id: null, label: "Fitness", icon: <Dumbbell size={17} />, phase: 3 },
-  { id: null, label: "Finanzen", icon: <PiggyBank size={17} />, phase: 3 },
+  { id: "career", label: "Karriere", icon: <Briefcase size={17} /> },
+  { id: "fitness", label: "Fitness", icon: <Dumbbell size={17} /> },
+  { id: "finance", label: "Finanzen", icon: <PiggyBank size={17} /> },
   { id: "stats", label: "Statistiken", icon: <BarChart3 size={17} /> },
   { id: "settings", label: "Einstellungen", icon: <Settings size={17} /> },
 ];

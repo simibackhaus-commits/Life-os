@@ -48,6 +48,7 @@ beforeAll(async () => {
     revoke update on public.characters from authenticated; grant update (name, avatar, class_name) on public.characters to authenticated;
     revoke update on public.court_cases from authenticated; grant update (plea) on public.court_cases to authenticated;
     revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases, public.skills_unlocked from authenticated;
+    revoke update on public.finance_entries from authenticated;
     insert into auth.users (id) values ('${USER_A}'), ('${USER_B}');
   `);
 });
@@ -275,6 +276,34 @@ describe("Skilltree, Boni, Questketten", () => {
     expect(r.s.completions).toBe(3);
     expect(r.s.completedTypes.sort()).toEqual(["side"]);
     expect(r.s.purchases).toBe(1);
+  });
+});
+
+describe("Module: Finanzen und Sport", () => {
+  it("Einzahlung erhöht Sparziel, Löschen verringert es; fremde Ziele sind gesperrt", async () => {
+    const g = await as(USER_B, () => one<{ id: string }>("insert into public.goals (title, area, target_value) values ('Notgroschen', 'finanzen', 3000) returning id"));
+    const e = await as(USER_B, () =>
+      one<{ id: string }>("insert into public.finance_entries (kind, amount, date, goal_id) values ('einzahlung', 250.50, '2026-10-27', $1) returning id", [g.id]),
+    );
+    await as(USER_B, () => db.query("insert into public.finance_entries (kind, amount, date) values ('ausgabe', 40, '2026-10-27')"));
+    let goal = await one<{ v: string }>("select current_value::text as v from public.goals where id = $1", [g.id]);
+    expect(goal.v).toBe("250.50");
+
+    await as(USER_B, () => db.query("delete from public.finance_entries where id = $1", [e.id]));
+    goal = await one<{ v: string }>("select current_value::text as v from public.goals where id = $1", [g.id]);
+    expect(Number(goal.v)).toBe(0);
+
+    await expect(
+      as(USER_A, () => db.query("insert into public.finance_entries (kind, amount, date, goal_id) values ('einzahlung', 1, '2026-10-27', $1)", [g.id])),
+    ).rejects.toThrow(/row-level security/);
+    await expect(as(USER_B, () => db.query("update public.finance_entries set amount = 1"))).rejects.toThrow(/permission denied/);
+  });
+
+  it("Trainings sind privat und validiert", async () => {
+    await as(USER_B, () => db.query("insert into public.workouts (date, kind, duration_min, distance_km) values ('2026-10-27', 'laufen', 30, 5)"));
+    await expect(as(USER_B, () => db.query("insert into public.workouts (date, kind, duration_min) values ('2026-10-27', 'yoga-fliegen', 30)"))).rejects.toThrow();
+    const other = await as(USER_A, () => db.query("select * from public.workouts"));
+    expect(other.rows).toHaveLength(0);
   });
 });
 

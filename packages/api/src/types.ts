@@ -3,6 +3,12 @@ import type {
   Consequence,
   Excuse,
   GameState,
+  Goal,
+  GoalDraftInput,
+  FinanceEntry,
+  FinanceEntryInput,
+  Workout,
+  WorkoutInput,
   LifetimeStats,
   UnlockCheck,
   Plea,
@@ -53,6 +59,9 @@ export interface Snapshot extends GameState {
   shopItems: ShopItem[];
   purchases: ShopPurchase[];
   skills: string[];
+  goals: Goal[];
+  workouts: Workout[];
+  financeEntries: FinanceEntry[];
   /** Gesamtzähler vom Server (nur Cloud). */
   lifetime?: LifetimeStats;
 }
@@ -113,6 +122,14 @@ export interface DataStore {
   /** Kauft eine Belohnung. Coins werden serverseitig geprüft und abgezogen. */
   purchase(itemId: string): Promise<PurchaseResult>;
   unlockSkill(skillId: string): Promise<UnlockCheck>;
+
+  createGoal(input: GoalDraftInput): Promise<Goal>;
+  updateGoal(id: string, patch: Partial<GoalDraftInput>): Promise<void>;
+  /** Einzahlungen mit goalId erhöhen den Stand des Sparziels. */
+  addFinanceEntry(input: FinanceEntryInput): Promise<FinanceEntry>;
+  deleteFinanceEntry(id: string): Promise<void>;
+  logWorkout(input: WorkoutInput): Promise<Workout>;
+  deleteWorkout(id: string): Promise<void>;
 
   exportData(): Promise<unknown>;
   deleteAllData(): Promise<void>;

@@ -125,8 +125,12 @@ export default function Settings() {
           </View>
         </Card>
 
-        <Card title="Demnächst (Phase 3)">
-          <Text style={s.muted}>Business-, Sport- und Finanzmodule.</Text>
+        <Card title="Lebensbereiche">
+          <View style={{ gap: 8 }}>
+            <Button label="Karriere & Business" icon="briefcase" variant="outline" onPress={() => router.push("/career")} />
+            <Button label="Fitness" icon="barbell" variant="outline" onPress={() => router.push("/fitness")} />
+            <Button label="Finanzen" icon="wallet" variant="outline" onPress={() => router.push("/finance")} />
+          </View>
         </Card>
       </ScrollView>
     </SafeAreaView>

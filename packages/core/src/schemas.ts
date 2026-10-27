@@ -96,6 +96,8 @@ export const QuestDraftSchema = z.object({
   goalId: z.string().uuid().nullable().default(null),
   /** Questkette: Diese Quest wird erst freigeschaltet, wenn die Voraussetzung erledigt ist. */
   requiresQuestId: z.string().uuid().nullable().default(null),
+  /** Business: an wen die Aufgabe delegiert ist (Nachverfolgung statt eigener Erledigung). */
+  delegatedTo: z.string().trim().max(80).nullable().default(null),
   proofRequired: z.boolean().default(false),
   /** Verpflichtende Quests können bei Versäumnis vor Gericht kommen. */
   mandatory: z.boolean().default(false),
