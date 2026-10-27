@@ -35,7 +35,7 @@ Letzte Aktualisierung: 2026-10-27 (Sitzung 1)
 
 | Baustein | Status | Nachweis / Hinweis |
 |---|---|---|
-| Expo-App (SDK 58, Expo Router, Tabs) | FERTIG | `tsc` grün, `expo-doctor` 20/20 |
+| Expo-App (SDK 58, Expo Router, Tabs) | FERTIG | `tsc` grün, `expo-doctor` 20/20, läuft auf dem iPhone in Expo Go (2026-10-27) |
 | Startseite (Level, XP, Coins, Tagesquests, Hauptquest, Schnellaktionen) | FERTIG | In Web-Vorschau (375×812) geprüft |
 | Quick-Add mit bearbeitbarer Vorschau, Spracheingabe über iOS-Tastaturdiktat | FERTIG | Web-Vorschau: Zähneputzen → 2 Instanzen |
 | Questabschluss mit Animation + Haptik, Rücknahme per langem Drücken | FERTIG (Web) | Haptik nur auf dem Gerät prüfbar |

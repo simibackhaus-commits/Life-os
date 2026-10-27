@@ -141,6 +141,8 @@ pnpm mobile
 ```
 
 4. Den QR-Code im Terminal mit der **iPhone-Kamera** scannen → öffnet in Expo Go.
+   Expo Go verlangt, dass auch der PC mit demselben Expo-Konto angemeldet ist. Die Browser-Anmeldung von Expo klappt unter Windows nicht zuverlässig, daher einmalig:
+   `cd apps\mobile; npx expo login --no-browser -u <expo-benutzername>` (Passwort wird abgefragt).
    Fragt die Windows-Firewall nach Node.js: „Zugriff zulassen“ (privates Netzwerk).
    Klappt die Verbindung nicht (z. B. Gäste-WLAN): `pnpm mobile:tunnel`.
 
