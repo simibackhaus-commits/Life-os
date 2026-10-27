@@ -35,5 +35,14 @@ Schutz: Krankheit, Verletzung, Regeneration, Notfall → nur Freispruch/Einstell
 ## ADR-9 – Desktop-UI: Tailwind 4 + shadcn-Stil ohne CLI
 shadcn-Komponenten wurden im shadcn-Muster (cva + tailwind-merge + Radix) direkt angelegt, damit keine interaktive CLI nötig ist. Designtokens liegen in `packages/ui-tokens` und werden später für NativeWind wiederverwendet.
 
+## ADR-11 – iPhone-App: Expo SDK 58, StyleSheet statt NativeWind
+Expo Go unterstützt nur das neueste SDK → SDK 58 (React 19, RN 0.88). Styling über `StyleSheet` + `@life-os/ui-tokens` statt NativeWind (vom Auftrag als „vergleichbare Lösung“ zugelassen): keine Babel-/Tailwind-v3-Sonderkonfiguration im Monorepo, dieselben Farbtokens. Die Desktop-App wurde ebenfalls auf React 19 gehoben, damit nur eine `@types/react`-Version im Workspace existiert.
+- Supabase-Sitzung liegt im iOS-Schlüsselbund (SecureStore, in 1,8-KB-Stücke zerlegt wegen des 2-KB-Limits).
+- `HydratedStorage` macht AsyncStorage für `LocalStore`/`Outbox` synchron nutzbar (Start: einlesen, danach Hintergrund-Schreiben).
+- `crypto.randomUUID` wird für Hermes per `expo-crypto` nachgerüstet (`src/polyfills.ts`, vor dem Router geladen).
+- Supabase-URL/anon key kommen aus der gemeinsamen `.env.local` über `app.config.ts → extra`. `LIFE_OS_LOCAL=1` erzwingt den lokalen Modus für UI-Tests.
+- Gemeinsame Selektoren (heutige Quests, verpasste Pflichtquests, Streaks) liegen in `packages/api/src/selectors.ts`.
+- Erinnerungen sind lokale Benachrichtigungen (funktionieren in Expo Go). Remote-Push folgt mit einem EAS Development Build.
+
 ## ADR-10 – Datenbanktests ohne Docker
 Docker ist auf dem Entwicklungsrechner nicht immer aktiv. → Migrationen werden in Vitest gegen PGlite (Postgres als WASM) mit minimalem `auth`-Stub ausgeführt: Regelparität, Idempotenz, RLS, Spaltenrechte, Gerichtsgrenzen, Accountlöschung. Ersetzt keinen Test gegen echtes Supabase (Realtime, Auth, PostgREST) – der steht in der Roadmap.

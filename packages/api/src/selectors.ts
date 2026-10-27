@@ -9,7 +9,7 @@ import {
   type Quest,
   type QuestInstance,
 } from "@life-os/core";
-import type { Snapshot } from "@life-os/api";
+import type { Snapshot } from "./types.ts";
 
 export interface OccurrenceItem {
   quest: Quest;

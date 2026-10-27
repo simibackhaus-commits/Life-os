@@ -5,7 +5,7 @@ import type { CourtCase } from "@life-os/api";
 import { QuestItem } from "@/components/game";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, CardTitle, Label, Select, Textarea } from "@/components/ui/primitives";
-import { missedMandatory, rewardOf } from "@/lib/game";
+import { missedMandatory, rewardOf } from "@life-os/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
 

@@ -12,5 +12,6 @@ $lines = @(
   "VITE_SUPABASE_URL=https://$ProjectRef.supabase.co",
   "VITE_SUPABASE_ANON_KEY=$anon"
 )
-Set-Content -Path (Join-Path $root '.env.local') -Value $lines -Encoding utf8
+# Ohne BOM schreiben: Windows PowerShell 5 setzt bei -Encoding utf8 ein BOM, das die Supabase-CLI nicht verträgt.
+[System.IO.File]::WriteAllLines((Join-Path $root '.env.local'), $lines, (New-Object System.Text.UTF8Encoding $false))
 Write-Host ".env.local geschrieben (URL + anon key)."

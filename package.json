@@ -10,8 +10,10 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "sync:shared": "node scripts/sync-shared.mjs",
-    "functions:deploy": "node scripts/sync-shared.mjs && supabase functions deploy game-master quick-add court",
-    "db:push": "supabase db push"
+    "functions:deploy": "node scripts/sync-shared.mjs && supabase functions deploy game-master quick-add court --use-api",
+    "db:push": "supabase db push",
+    "mobile": "pnpm --filter @life-os/mobile start",
+    "mobile:tunnel": "pnpm --filter @life-os/mobile exec expo start --tunnel"
   },
   "engines": {
     "node": ">=20"

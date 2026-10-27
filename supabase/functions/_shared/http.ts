@@ -64,5 +64,7 @@ export function handler(fn: (req: Request, ctx: RequestContext) => Promise<Respo
 }
 
 export function anthropicKey(): string {
-  return env("ANTHROPIC_API_KEY");
+  const key = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!key) throw new HttpError(503, "KI ist nicht eingerichtet (kein ANTHROPIC_API_KEY). Die App nutzt Offline-Parser und Regelrichter.");
+  return key;
 }

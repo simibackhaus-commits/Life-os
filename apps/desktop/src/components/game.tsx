@@ -4,7 +4,7 @@ import { ATTRIBUTES, ATTRIBUTE_CURVE, ATTRIBUTE_LABELS, QUEST_TYPE_LABELS, level
 import { attributeColors, questTypeColors } from "@life-os/ui-tokens";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { useState } from "react";
-import { questStreak, rewardOf, xpPerDay, type OccurrenceItem } from "@/lib/game";
+import { questStreak, rewardOf, xpPerDay, type OccurrenceItem } from "@life-os/api";
 import { cn } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";

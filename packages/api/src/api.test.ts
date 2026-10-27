@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LocalStore, type KeyValueStorage } from "./local-store.ts";
 import { Outbox, type OutboxItem } from "./outbox.ts";
+import { HydratedStorage, STORAGE_KEYS } from "./storage.ts";
 
 class MemoryStorage implements KeyValueStorage {
   m = new Map<string, string>();
@@ -64,6 +65,23 @@ describe("LocalStore", () => {
     const r = await store.quickAdd("Jeden Tag morgens und abends Zähne putzen");
     expect(r.source).toBe("offline");
     expect(r.draft.recurrence?.times).toEqual(["07:00", "21:00"]);
+  });
+});
+
+describe("HydratedStorage", () => {
+  it("liest beim Start ein und schreibt asynchron durch", async () => {
+    const backend = new Map<string, string>([["life-os/outbox/v1", "[1]"]]);
+    const async = {
+      getItem: async (k: string) => backend.get(k) ?? null,
+      setItem: async (k: string, v: string) => void backend.set(k, v),
+      removeItem: async (k: string) => void backend.delete(k),
+    };
+    const s = await HydratedStorage.create(async, STORAGE_KEYS);
+    expect(s.getItem("life-os/outbox/v1")).toBe("[1]");
+    s.setItem("life-os/local/v1", "x");
+    expect(s.getItem("life-os/local/v1")).toBe("x");
+    await s.flushWrites();
+    expect(backend.get("life-os/local/v1")).toBe("x");
   });
 });
 

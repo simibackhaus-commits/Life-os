@@ -11,7 +11,7 @@ Monorepo (pnpm Workspaces) für Windows-Desktop (Tauri 2 + React) und iPhone (Ex
 ```
 life-os/
   apps/desktop/          Windows-App: React + Vite + Tailwind 4 + Tauri 2 (src-tauri/)
-  apps/mobile/           iPhone-App (Phase 2, noch nicht angelegt)
+  apps/mobile/           iPhone-App: Expo SDK 58 + Expo Router (Phase 2)
   packages/core/         Spielregeln: Typen, Zod-Validierung, XP-/Levelkurve, Belohnungen,
                          Wiederholungen, Streaks, Gericht-Regelbasis, Quick-Add-Parser, Engine
   packages/database/     Tabellen-Zeilentypen + Mapper; Migrationstests gegen echtes Postgres (PGlite)
@@ -130,9 +130,23 @@ pnpm --filter @life-os/desktop tauri build
 Ergebnis: `apps/desktop/src-tauri/target/release/bundle/nsis/*.exe` (Setup) und `bundle/msi/*.msi`.
 Das App-Icon wird aus `apps/desktop/app-icon.svg` erzeugt: `pnpm --filter @life-os/desktop tauri icon app-icon.svg`.
 
-## 6.–7. iPhone (Phase 2)
+## 6. iPhone-App mit Expo Go testen
 
-Die Expo-App wird in Phase 2 angelegt. Geplanter Ablauf: `pnpm --filter @life-os/mobile start` → QR-Code mit der Kamera scannen → Expo Go. iOS-Build über `eas build -p ios` (erfordert ein Apple-Developer-Konto). Details folgen mit der App.
+1. Auf dem iPhone **Expo Go** aus dem App Store installieren.
+2. PC und iPhone im **selben WLAN**.
+3. Auf dem PC:
+
+```powershell
+pnpm mobile
+```
+
+4. Den QR-Code im Terminal mit der **iPhone-Kamera** scannen → öffnet in Expo Go.
+   Fragt die Windows-Firewall nach Node.js: „Zugriff zulassen“ (privates Netzwerk).
+   Klappt die Verbindung nicht (z. B. Gäste-WLAN): `pnpm mobile:tunnel`.
+
+## 7. iOS-Build über EAS (später)
+
+Benötigt ein Apple-Developer-Konto (99 €/Jahr). Dann im Ordner `apps/mobile`: `eas login`, `eas build:configure`, `eas build -p ios`. Für echte Remote-Push-Benachrichtigungen ist ein solcher Build nötig.
 
 ## 8. Aktualisieren
 

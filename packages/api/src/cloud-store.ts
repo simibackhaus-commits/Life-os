@@ -20,7 +20,7 @@ import {
 } from "@life-os/database";
 import type { KeyValueStorage } from "./local-store.ts";
 import { Outbox, isNetworkError, type OutboxItem } from "./outbox.ts";
-import type { ChatReply, CompletionOutcome, CourtCase, CourtMessage, DataStore, QuestPatch, Snapshot, SyncState } from "./types.ts";
+import { FeatureUnavailableError, type ChatReply, type CompletionOutcome, type CourtCase, type CourtMessage, type DataStore, type QuestPatch, type Snapshot, type SyncState } from "./types.ts";
 
 interface CaseRow {
   id: string;
@@ -60,6 +60,20 @@ const caseFromRow = (r: CaseRow): CourtCase => ({
   decidedAt: r.decided_at,
 });
 
+/** Liest die { error }-Meldung aus der Antwort einer Edge Function, falls vorhanden. */
+async function functionErrorMessage(err: { message: string; context?: unknown }): Promise<string> {
+  const ctx = err.context;
+  if (ctx && typeof (ctx as Response).json === "function") {
+    try {
+      const body = (await (ctx as Response).clone().json()) as { error?: string };
+      if (body.error) return body.error;
+    } catch {
+      // kein JSON
+    }
+  }
+  return err.message;
+}
+
 function unwrap<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
   return res.data as T;
@@ -93,7 +107,10 @@ export class CloudStore implements DataStore {
       .channel(`life-os-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", filter: `user_id=eq.${userId}` }, () => this.emit())
       .subscribe();
-    if (typeof window !== "undefined") window.addEventListener("online", () => void this.flush());
+    // Browser/Tauri: bei Netzrückkehr nachsenden. React Native ruft flush() selbst (NetInfo) auf.
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("online", () => void this.flush());
+    }
     void this.flush();
   }
 
@@ -266,7 +283,7 @@ export class CloudStore implements DataStore {
 
   private async court(caseId: string, action: "plead" | "message" | "appeal", body: Record<string, unknown>) {
     const res = await this.sb.functions.invoke("court", { body: { caseId, action, ...body } });
-    if (res.error) throw new Error(`Gericht nicht erreichbar: ${res.error.message}`);
+    if (res.error) throw new Error(`Gericht: ${await functionErrorMessage(res.error)}`);
     this.emit();
   }
 
@@ -284,7 +301,11 @@ export class CloudStore implements DataStore {
 
   async chat(message: string): Promise<ChatReply> {
     const res = await this.sb.functions.invoke("game-master", { body: { message, today: localToday() } });
-    if (res.error) throw new Error(`Spielleiter nicht erreichbar: ${res.error.message}`);
+    if (res.error) {
+      const msg = await functionErrorMessage(res.error);
+      if (/KI ist nicht eingerichtet/.test(msg)) throw new FeatureUnavailableError(msg);
+      throw new Error(`Spielleiter: ${msg}`);
+    }
     return res.data as ChatReply;
   }
 

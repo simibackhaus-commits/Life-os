@@ -31,8 +31,24 @@ Letzte Aktualisierung: 2026-10-27 (Sitzung 1)
 4. Serverseitige Prüfung, ob ein `occurrence_key` laut Wiederholungsregel geplant ist (ADR-5).
 5. Bundle-Splitting (Recharts lazy laden) – derzeit ~860 kB JS.
 
-## Phase 2 – iPhone (GEPLANT)
-Expo-App (`apps/mobile`, Expo Router, NativeWind mit `ui-tokens`), Anmeldung (SecureStore, optional Face ID), Quests + Charakter, Sync über `CloudStore`/Outbox, Push-Benachrichtigungen, Gerichtschat, Haptik, animierte Abschlüsse. Test mit demselben Account auf PC + iPhone.
+## Phase 2 – iPhone (IN ARBEIT)
+
+| Baustein | Status | Nachweis / Hinweis |
+|---|---|---|
+| Expo-App (SDK 58, Expo Router, Tabs) | FERTIG | `tsc` grün, `expo-doctor` 20/20 |
+| Startseite (Level, XP, Coins, Tagesquests, Hauptquest, Schnellaktionen) | FERTIG | In Web-Vorschau (375×812) geprüft |
+| Quick-Add mit bearbeitbarer Vorschau, Spracheingabe über iOS-Tastaturdiktat | FERTIG | Web-Vorschau: Zähneputzen → 2 Instanzen |
+| Questabschluss mit Animation + Haptik, Rücknahme per langem Drücken | FERTIG (Web) | Haptik nur auf dem Gerät prüfbar |
+| Charakter, Gericht (Plädoyer, Urteil, Berufung, Chat im Cloud-Modus), Einstellungen | FERTIG (Web) | |
+| Anmeldung (Supabase, Sitzung im iOS-Schlüsselbund via SecureStore) | IN ARBEIT | Login-Seite geprüft; echter Login auf iPhone ausstehend |
+| Optionale Face-ID-Sperre | IN ARBEIT | Nur auf dem Gerät testbar |
+| Lokale Erinnerungen (expo-notifications) | IN ARBEIT | Nur auf dem Gerät testbar |
+| Offline-Warteschlange + Nachsenden bei Netz (NetInfo) | IN ARBEIT | Logik getestet (Outbox, HydratedStorage), Gerät ausstehend |
+| Sync PC ↔ iPhone mit demselben Account | IN ARBEIT | Nutzer-Test ausstehend |
+| Remote-Push (Server → iPhone) | GEPLANT | Benötigt Development Build (EAS) + Apple-Developer-Konto; in Expo Go nicht möglich |
+| iOS-Build über EAS | GEPLANT | Benötigt Apple-Developer-Konto (99 €/Jahr) |
+
+Edge Functions sind deployt (`--use-api`, ohne Docker). Ohne `ANTHROPIC_API_KEY` urteilt im Cloud-Modus der Regelrichter serverseitig; Spielleiter meldet „KI nicht eingerichtet“.
 
 ## Phase 3 – RPG-Erweiterungen (GEPLANT)
 Skilltrees, Shop (Coins ausgeben, `shop_purchase`-Events), Achievements, Bosskämpfe, Questketten, erweiterte Verhandlungen, Statistiken, Kalender, Business-/Sport-/Finanzmodule (an Questsystem und `goals` gekoppelt). In der Seitenleiste bereits als „P3" sichtbar, aber deaktiviert.
@@ -41,4 +57,5 @@ Skilltrees, Shop (Coins ausgeben, `shop_purchase`-Events), Achievements, Bosskä
 Hauptquartier, Avatar, Storysystem, Saison-Events, Habit Garden, Fokus-Dungeons, Animationen, externe Integrationen (Google/Outlook/Apple Calendar, Gmail, Strava, Garmin, Apple Health, WhatsApp Business API). Keine Integration gilt als fertig, bevor sie live getestet wurde.
 
 ## Sitzungsprotokoll
+- **2026-10-27, Sitzung 1 (Fortsetzung):** Supabase-Projekt verknüpft und migriert, Windows-Installer gebaut, KI bewusst zurückgestellt (keine API-Kosten). Phase 2 gestartet: Expo-App mit allen Kernbildschirmen, Edge Functions deployt, Desktop auf React 19 gehoben, Selektoren nach `packages/api` verschoben. 47 Tests grün.
 - **2026-10-27, Sitzung 1:** Monorepo, Kernlogik, Schema/RLS/RPCs, API-Schicht, Desktop-UI, Edge Functions, Doku. 46 automatisierte Tests grün (core 23, database 14, api 4, functions 5). Desktop im Browser end-to-end geprüft.

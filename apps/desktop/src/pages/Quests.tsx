@@ -6,7 +6,7 @@ import { QuestEditor } from "@/components/QuestEditor";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Badge, Card } from "@/components/ui/primitives";
-import { questStreak, rewardOf } from "@/lib/game";
+import { questStreak, rewardOf } from "@life-os/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
 

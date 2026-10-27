@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import type { QuestDraftInput } from "@life-os/core";
 import { FeatureUnavailableError } from "@life-os/api";
-import { missedMandatory, upcoming } from "@/lib/game";
+import { missedMandatory, upcoming } from "@life-os/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";

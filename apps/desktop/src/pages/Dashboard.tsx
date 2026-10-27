@@ -3,7 +3,7 @@ import { QUEST_TYPE_LABELS } from "@life-os/core";
 import { questTypeColors } from "@life-os/ui-tokens";
 import { AttributeGrid, CharacterSummary, QuestItem, XpChart } from "@/components/game";
 import { Badge, Card, CardTitle, Progress } from "@/components/ui/primitives";
-import { todaysItems } from "@/lib/game";
+import { todaysItems } from "@life-os/api";
 import { formatDateTime } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
 

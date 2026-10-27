@@ -59,14 +59,18 @@ async function caseFile(ctx: RequestContext, c: CaseRow): Promise<string> {
     const done = (inst ?? []).filter((i) => i.status === "erledigt").length;
     lines.push(`Erledigte Vorkommen dieser Quest in den letzten 14 Tagen: ${done}`);
   }
+  lines.push(`Frühere Verurteilungen: ${await priorConvictions(ctx, c.id)}`);
+  return lines.join("\n");
+}
+
+async function priorConvictions(ctx: RequestContext, caseId: string): Promise<number> {
   const { count } = await ctx.user
     .from("court_cases")
     .select("id", { count: "exact", head: true })
     .eq("status", "urteil")
     .not("verdict", "in", "(freispruch,einstellung)")
-    .neq("id", c.id);
-  lines.push(`Frühere Verurteilungen: ${count ?? 0}`);
-  return lines.join("\n");
+    .neq("id", caseId);
+  return count ?? 0;
 }
 
 async function applyVerdict(ctx: RequestContext, c: CaseRow, v: VerdictProposal) {
@@ -124,7 +128,7 @@ async function deliberate(ctx: RequestContext, c: CaseRow, fallback: { plea: Ple
     console.error("judge_unavailable", e instanceof Error ? e.name : "unknown");
   }
   // Fallback: deterministischer Regelrichter (immer regelkonform)
-  const v = simpleJudge({ plea: fallback.plea, excuse: fallback.excuse, priorConvictions: 0, questTitle: c.charge });
+  const v = simpleJudge({ plea: fallback.plea, excuse: fallback.excuse, priorConvictions: await priorConvictions(ctx, c.id), questTitle: c.charge });
   const checked = validateVerdict(v, caseCtx);
   return { verdict: checked.sanitized!, prosecution: "", defense: "", viaFallback: true };
 }
@@ -181,7 +185,7 @@ Deno.serve(
     }
 
     await applyVerdict(ctx, c, verdict);
-    await addMessage(ctx, c.id, "system", outcome.viaFallback ? "KI-Richter nicht erreichbar – Urteil durch den Regelrichter." : "Urteil verkündet.");
+    await addMessage(ctx, c.id, "system", outcome.viaFallback ? "Urteil durch den Regelrichter (ohne KI)." : "Urteil verkündet.");
     return json({ status: "urteil", verdict: verdict.verdict });
   }),
 );
