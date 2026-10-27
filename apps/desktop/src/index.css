@@ -1,0 +1,35 @@
+@import "tailwindcss";
+@import "@life-os/ui-tokens/theme.css";
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 10% -10%, rgb(139 92 246 / 0.10), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, rgb(56 189 248 / 0.07), transparent 60%);
+  }
+  ::selection {
+    @apply bg-violet/40;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-border bg-surface/80 backdrop-blur-sm;
+  }
+  .heading {
+    @apply font-display tracking-wide text-gold;
+  }
+  .gold-glow {
+    box-shadow: 0 0 0 1px rgb(230 180 80 / 0.25), 0 0 24px -4px rgb(230 180 80 / 0.35);
+  }
+}

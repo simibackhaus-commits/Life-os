@@ -1,0 +1,22 @@
+{
+  "name": "life-os",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "pnpm --filter @life-os/desktop dev",
+    "desktop:tauri": "pnpm --filter @life-os/desktop tauri dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "sync:shared": "node scripts/sync-shared.mjs",
+    "functions:deploy": "node scripts/sync-shared.mjs && supabase functions deploy game-master quick-add court",
+    "db:push": "supabase db push"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "supabase": "^2.122.0"
+  }
+}

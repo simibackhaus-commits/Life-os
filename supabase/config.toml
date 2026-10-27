@@ -1,0 +1,22 @@
+# Minimale lokale Supabase-Konfiguration. Weitere Optionen: `supabase init` erzeugt die vollständige Vorlage.
+project_id = "life-os"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+site_url = "http://localhost:1420"
+additional_redirect_urls = ["tauri://localhost", "http://tauri.localhost"]
+
+[functions.game-master]
+verify_jwt = true
+
+[functions.quick-add]
+verify_jwt = true
+
+[functions.court]
+verify_jwt = true

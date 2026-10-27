@@ -1,0 +1,6 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2022", "DOM"] },
+  "include": ["**/*.ts", "types/deno-shim.d.ts"],
+  "exclude": ["node_modules"]
+}
