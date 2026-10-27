@@ -20,8 +20,9 @@ Letzte Aktualisierung: 2026-10-27 (Sitzung 1)
 | Einfaches Gerichtssystem | FERTIG (Regelrichter) / IN ARBEIT (KI) | Lokal im Browser geprüft (Freispruch bei Krankheit, Verwarnung, Berufung); KI-Function typgeprüft + Logiktests, nicht live |
 | KI-Spielleiter-Chat | IN ARBEIT | Function + UI fertig, braucht Supabase-Projekt + Anthropic-Key für den Live-Test |
 | Authentifizierung (E-Mail/Passwort) | IN ARBEIT | UI + Supabase Auth angebunden, nicht live getestet |
-| Tauri-Desktop-Build / Installer | BLOCKIERT | Rust + MSVC Build Tools fehlen auf dem PC (Befehle im README). Projektdateien + Icons sind angelegt |
-| Echtes Supabase (Cloud oder lokal) | BLOCKIERT | Braucht Supabase-Projekt oder laufendes Docker Desktop |
+| Tauri-Desktop-Build / Installer | IN ARBEIT | Rust + MSVC Build Tools installiert (2026-10-27), `pnpm desktop:tauri` startet `life-os.exe` ohne Fehler. `tauri build` (Installer) noch nicht getestet |
+| Echtes Supabase (Cloud) | IN ARBEIT | Projekt `askgudcwsfsfooyrslay` (West EU) verknüpft, Migration per `db push` eingespielt, `.env.local` per `scripts/write-env.ps1` erzeugt, App zeigt Login. Registrierung/Sync noch nicht durchgespielt. E-Mail-Bestätigung ist aktiv |
+| KI (Anthropic API) | GEPLANT | Bewusst zurückgestellt (keine Zusatzkosten). App nutzt Offline-Parser und Regelrichter |
 
 ### Nächste Schritte (Reihenfolge)
 1. Rust + C++ Build Tools installieren → `pnpm desktop:tauri` testen → `tauri build` (Installer).
