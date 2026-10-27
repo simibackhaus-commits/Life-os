@@ -4,6 +4,9 @@ import {
   computeReward,
   computeStreak,
   evaluateAchievements,
+  gameDateOf,
+  isoWeekday,
+  occurrenceDueAt,
   isQuestLocked,
   occurrencesBetween,
   occurrencesOn,
@@ -29,9 +32,7 @@ function instanceIndex(instances: QuestInstance[]) {
   return m;
 }
 
-export function occurrenceDueAt(date: string, time: string | null): string {
-  return new Date(`${date}T${time ?? "23:59"}:00`).toISOString();
-}
+export { occurrenceDueAt };
 
 /** Heute fällige Vorkommen aller aktiven Quests + offene einmalige Quests, die heute oder früher fällig sind. */
 export function todaysItems(s: Snapshot, today: string): OccurrenceItem[] {
@@ -44,15 +45,15 @@ export function todaysItems(s: Snapshot, today: string): OccurrenceItem[] {
         const inst = idx.get(`${q.id}|${o.key}`) ?? null;
         out.push({ quest: q, key: o.key, date: o.date, time: o.time, dueAt: occurrenceDueAt(o.date, o.time), status: inst?.status ?? "offen", instance: inst });
       }
-    } else if (q.type === "daily" || (q.dueAt && q.dueAt.slice(0, 10) <= today)) {
-      out.push({ quest: q, key: ONCE_KEY, date: q.dueAt?.slice(0, 10) ?? today, time: null, dueAt: q.dueAt, status: "offen", instance: null });
+    } else if (q.type === "daily" || (q.dueAt && gameDateOf(q.dueAt) <= today)) {
+      out.push({ quest: q, key: ONCE_KEY, date: (q.dueAt ? gameDateOf(q.dueAt) : today), time: null, dueAt: q.dueAt, status: "offen", instance: null });
     }
   }
   // Heute erledigte einmalige Quests weiterhin anzeigen
   for (const i of s.instances) {
     if (i.occurrenceKey !== ONCE_KEY || i.status !== "erledigt" || !i.completedAt) continue;
     const q = s.quests.find((x) => x.id === i.questId);
-    if (q && new Date(i.completedAt).toDateString() === new Date().toDateString()) {
+    if (q && gameDateOf(i.completedAt) === today) {
       out.push({ quest: q, key: ONCE_KEY, date: today, time: null, dueAt: q.dueAt, status: "erledigt", instance: i });
     }
   }
@@ -78,7 +79,7 @@ export function missedMandatory(s: Snapshot, today: string): OccurrenceItem[] {
         out.push({ quest: q, key: o.key, date: o.date, time: o.time, dueAt, status: "verpasst", instance: inst ?? null });
       }
     } else if (q.dueAt && q.dueAt < nowIso && !caseKeys.has(`${q.id}|${ONCE_KEY}`)) {
-      out.push({ quest: q, key: ONCE_KEY, date: q.dueAt.slice(0, 10), time: null, dueAt: q.dueAt, status: "verpasst", instance: null });
+      out.push({ quest: q, key: ONCE_KEY, date: gameDateOf(q.dueAt), time: null, dueAt: q.dueAt, status: "verpasst", instance: null });
     }
   }
   return out;
@@ -93,8 +94,8 @@ export function upcoming(s: Snapshot, today: string, days = 7): OccurrenceItem[]
       for (const o of occurrencesBetween(q.recurrence, addDays(today, 1), to).slice(0, 3)) {
         out.push({ quest: q, key: o.key, date: o.date, time: o.time, dueAt: occurrenceDueAt(o.date, o.time), status: "offen", instance: null });
       }
-    } else if (q.dueAt && q.dueAt.slice(0, 10) > today && q.dueAt.slice(0, 10) <= to) {
-      out.push({ quest: q, key: ONCE_KEY, date: q.dueAt.slice(0, 10), time: null, dueAt: q.dueAt, status: "offen", instance: null });
+    } else if (q.dueAt && gameDateOf(q.dueAt) > today && gameDateOf(q.dueAt) <= to) {
+      out.push({ quest: q, key: ONCE_KEY, date: gameDateOf(q.dueAt), time: null, dueAt: q.dueAt, status: "offen", instance: null });
     }
   }
   return out.sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? "")).slice(0, 8);
@@ -113,8 +114,7 @@ export function xpPerDay(s: Snapshot, today: string, n = 14) {
   const days = Array.from({ length: n }, (_, i) => addDays(today, i - n + 1));
   const sums = new Map(days.map((d) => [d, 0]));
   for (const e of s.events) {
-    const d = new Date(e.createdAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const key = gameDateOf(e.createdAt);
     if (sums.has(key)) sums.set(key, sums.get(key)! + e.xpDelta);
   }
   return days.map((d) => ({ day: d.slice(5).split("-").reverse().join("."), xp: sums.get(d)! }));
@@ -136,10 +136,9 @@ export function completionsByWeekday(s: Snapshot, today: string, days = 30) {
   const counts = [0, 0, 0, 0, 0, 0, 0];
   for (const i of s.instances) {
     if (i.status !== "erledigt" || !i.completedAt) continue;
-    const d = new Date(i.completedAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const key = gameDateOf(i.completedAt);
     if (key < from || key > today) continue;
-    counts[(d.getDay() + 6) % 7]!++;
+    counts[isoWeekday(key) - 1]!++;
   }
   return WEEKDAY_NAMES.map((day, i) => ({ day, count: counts[i]! }));
 }
@@ -187,11 +186,8 @@ export function calendarDay(s: Snapshot, date: string): OccurrenceItem[] {
   return out.sort((a, b) => (a.time ?? "99").localeCompare(b.time ?? "99"));
 }
 
-/** Lokales Kalenderdatum (JJJJ-MM-TT) eines ISO-Zeitpunkts. */
-export function localDateOf(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+/** Spieltag (JJJJ-MM-TT) eines ISO-Zeitpunkts – Tageswechsel um 04:00. */
+export const localDateOf = (iso: string): string => gameDateOf(iso);
 
 /** Monatsraster (Mo–So) mit Anzahl offener/erledigter Termine je Tag. */
 export function calendarMonth(s: Snapshot, year: number, month: number) {

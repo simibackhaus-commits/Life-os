@@ -12,6 +12,9 @@ import {
   isQuestLocked,
   skillPoints,
   evaluateAchievements,
+  gameDateOf,
+  localToday,
+  occurrenceDueAt,
   parseQuickAdd,
   purchaseItem,
   simpleJudge,
@@ -23,6 +26,19 @@ import {
 } from "./index.ts";
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+describe("Spieltag ab 04:00", () => {
+  it("vor 4 Uhr zählt noch zum Vortag", () => {
+    expect(localToday(new Date(2026, 9, 28, 3, 59))).toBe("2026-10-27");
+    expect(localToday(new Date(2026, 9, 28, 4, 0))).toBe("2026-10-28");
+    expect(localToday(new Date(2026, 9, 27, 23, 30))).toBe("2026-10-27");
+    expect(gameDateOf(new Date(2026, 9, 28, 1, 15).toISOString())).toBe("2026-10-27");
+  });
+  it("Uhrzeiten vor 4 Uhr liegen in der folgenden Nacht", () => {
+    expect(occurrenceDueAt("2026-10-27", "01:30")).toBe(new Date(2026, 9, 28, 1, 30).toISOString());
+    expect(occurrenceDueAt("2026-10-27", "22:00")).toBe(new Date(2026, 9, 27, 22, 0).toISOString());
+  });
+});
 
 describe("Levelkurve", () => {
   it("steigt progressiv", () => {

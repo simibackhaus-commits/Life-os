@@ -214,6 +214,12 @@ export const TEMPLATE_PACKS: TemplatePack[] = [
   },
 ];
 
+/** Vorhandene Quests, die aus dem Paket stammen (gleicher Titel) und wiederkehrend sind. */
+export function packQuestsIn<Q extends { title: string; recurrence: RecurrenceRule | null; status: string }>(pack: TemplatePack, quests: Q[]): Q[] {
+  const titles = new Set(pack.groups("2000-01-01").flatMap((g) => g.quests.map((q) => q.title.trim().toLowerCase())));
+  return quests.filter((q) => q.recurrence && (q.status === "aktiv" || q.status === "pausiert") && titles.has(q.title.trim().toLowerCase()));
+}
+
 /** Alle Quests eines Pakets, ohne Titel, die bereits als aktive/pausierte Quest existieren. */
 export function newFromPack(pack: TemplatePack, startDate: string, existingTitles: Iterable<string>) {
   const existing = new Set([...existingTitles].map((t) => t.trim().toLowerCase()));

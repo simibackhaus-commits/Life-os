@@ -1,3 +1,4 @@
+import { gameDateOf } from "./dates.ts";
 import { ATTRIBUTE_CURVE, levelFromXp } from "./leveling.ts";
 import type { Attribute, Character, GameEvent, Quest, QuestInstance } from "./schemas.ts";
 import type { AchievementStatus } from "./achievements.ts";
@@ -139,10 +140,8 @@ const completionsIn = (d: SeasonData, month: string, filter?: (q: Quest) => bool
   }).length;
 };
 const hasAttr = (a: Attribute) => (q: Quest) => q.attributes.includes(a);
-const localMonth = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
+/** Monat des Spieltags (Tageswechsel um 04:00). */
+const localMonth = (iso: string) => gameDateOf(iso).slice(0, 7);
 
 export const SEASON_EVENTS: SeasonEventDef[] = [
   { month: 1, title: "Vorsätze der Eisfeste", icon: "❄️", description: "Starte das Jahr stark: Schließe 30 Quests ab.", target: 30, unit: "Quests", measure: (d, m) => completionsIn(d, m) },
@@ -194,7 +193,7 @@ export function yearReview(d: SeasonData, year: string) {
   const inYear = (iso: string) => localMonth(iso).startsWith(year);
   const done = d.instances.filter((i) => i.status === "erledigt" && i.completedAt && inYear(i.completedAt));
   const byMonth = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, count: 0 }));
-  for (const i of done) byMonth[new Date(i.completedAt!).getMonth()]!.count++;
+  for (const i of done) byMonth[Number(gameDateOf(i.completedAt!).slice(5, 7)) - 1]!.count++;
   const best = byMonth.reduce((a, b) => (b.count > a.count ? b : a), byMonth[0]!);
   const quests = new Map(d.quests.map((q) => [q.id, q]));
   const counts = new Map<string, number>();

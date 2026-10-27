@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { TEMPLATE_PACKS, describeRule, newFromPack, type QuestDraftInput, type RecurrenceRule } from "@life-os/core";
+import { TEMPLATE_PACKS, addDays, describeRule, newFromPack, packQuestsIn, type QuestDraftInput, type RecurrenceRule } from "@life-os/core";
 import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
@@ -10,8 +10,24 @@ const keyOf = (q: QuestDraftInput) => q.title;
 export function TemplatePicker({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { snap, today, run, notify } = useGame();
   const pack = TEMPLATE_PACKS[0]!;
+  // Standard: ab dem nächsten Spieltag (Tageswechsel 04:00), damit heute nichts „verpasst“ wird
+  const [startDate, setStartDate] = useState(() => addDays(today, 1));
   const existingTitles = snap.quests.filter((q) => q.status === "aktiv" || q.status === "pausiert").map((q) => q.title);
-  const groups = useMemo(() => newFromPack(pack, today, existingTitles), [pack, today, existingTitles.join("|")]);
+  const groups = useMemo(() => newFromPack(pack, startDate, existingTitles), [pack, startDate, existingTitles.join("|")]);
+  const existingPack = packQuestsIn(pack, snap.quests);
+  const toShift = existingPack.filter((q) => q.recurrence!.startDate !== startDate);
+
+  async function shiftExisting() {
+    setBusy(true);
+    let ok = 0;
+    for (const q of toShift) {
+      if (await run((s) => s.updateQuest(q.id, { recurrence: { ...q.recurrence!, startDate } }).then(() => true))) ok++;
+      setProgress(ok);
+    }
+    setBusy(false);
+    setProgress(0);
+    notify("info", `Start von ${ok} Quests auf ${new Date(`${startDate}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })} verschoben.`);
+  }
   const [deselected, setDeselected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -44,6 +60,20 @@ export function TemplatePicker({ open, onOpenChange }: { open: boolean; onOpenCh
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)} title={`Vorlage: ${pack.title}`} description={pack.description} className="w-[min(820px,calc(100vw-32px))]">
       <div className="space-y-4">
+        <div className="flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+          <div>
+            <label className="mb-1 block text-xs text-muted" htmlFor="tpl-start">
+              Start der Quests (Spieltag beginnt um 04:00)
+            </label>
+            <input id="tpl-start" type="date" value={startDate} min={today} onChange={(e) => e.target.value && setStartDate(e.target.value)} className="h-9 rounded-md border border-border bg-bg/60 px-3 text-sm" />
+          </div>
+          <span className="pb-2 text-xs text-muted">{startDate === today ? "ab heute" : `ab ${new Date(`${startDate}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long" })}, 04:00`}</span>
+          {toShift.length > 0 && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void shiftExisting()} className="ml-auto">
+              Start der {toShift.length} vorhandenen Paket-Quests auf dieses Datum setzen
+            </Button>
+          )}
+        </div>
         {groups.map((g) => {
           const titles = g.quests.filter((q) => !q.exists).map((q) => q.quest.title);
           const allOn = titles.every((t) => !deselected.has(t));

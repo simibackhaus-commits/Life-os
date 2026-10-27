@@ -61,5 +61,8 @@ Einzahlungen erhöhen den Zielstand per Datenbank-Trigger; Buchungen sind unver�
 Ein Timer im Client lässt sich trivial manipulieren. Deshalb setzt `start_focus_session()` die Startzeit mit der Serveruhr, und `finish_focus_session()` vergibt XP/Coins nur, wenn `now() >= started_at + Dauer − 30 s`. Clients haben keine Schreibrechte auf `focus_sessions`. Ein eindeutiger Teilindex erlaubt höchstens eine laufende Sitzung pro Nutzer. Neue Ereignisart `focus_completed`.
 Habit Garden und Titel sind reine Darstellung aus vorhandenen Daten (Serien, Achievements); `characters.title` ist für den Spieler beschreibbar, weil kosmetisch.
 
+## ADR-16 – Spieltag beginnt um 04:00
+Wunsch des Nutzers: Späte Abende sollen noch zum laufenden Tag zählen. `DAY_START_HOUR = 4` in `packages/core/src/dates.ts`; `localToday()` und `gameDateOf()` verschieben um 4 Stunden, alle Auswertungen (heutige Quests, Kalender, Statistiken, Events, Jahresrückblick) nutzen den Spieltag. Uhrzeiten vor 04:00 gehören zur Nacht nach dem Spieltag (`occurrenceDueAt`). Der Server braucht keine Änderung: Er prüft nur, dass ein Vorkommen nicht mehr als einen Kalendertag in der Zukunft liegt.
+
 ## ADR-10 – Datenbanktests ohne Docker
 Docker ist auf dem Entwicklungsrechner nicht immer aktiv. → Migrationen werden in Vitest gegen PGlite (Postgres als WASM) mit minimalem `auth`-Stub ausgeführt: Regelparität, Idempotenz, RLS, Spaltenrechte, Gerichtsgrenzen, Accountlöschung. Ersetzt keinen Test gegen echtes Supabase (Realtime, Auth, PostgREST) – der steht in der Roadmap.
