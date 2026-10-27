@@ -11,7 +11,9 @@ import { QuestsPage } from "@/pages/Quests";
 import { CalendarPage } from "@/pages/Calendar";
 import { CareerPage } from "@/pages/Career";
 import { FinancePage } from "@/pages/Finance";
+import { DungeonsPage } from "@/pages/Dungeons";
 import { FitnessPage } from "@/pages/Fitness";
+import { GardenPage } from "@/pages/Garden";
 import { ShopPage } from "@/pages/Shop";
 import { SkilltreePage } from "@/pages/Skilltree";
 import { StatsPage } from "@/pages/Stats";
@@ -44,6 +46,8 @@ function Shell() {
         {page === "calendar" && <CalendarPage />}
         {page === "skills" && <SkilltreePage />}
         {page === "shop" && <ShopPage />}
+        {page === "dungeons" && <DungeonsPage />}
+        {page === "garden" && <GardenPage />}
         {page === "career" && <CareerPage />}
         {page === "fitness" && <FitnessPage />}
         {page === "finance" && <FinancePage />}

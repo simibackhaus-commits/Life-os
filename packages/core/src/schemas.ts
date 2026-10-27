@@ -147,6 +147,7 @@ export const GameEventKindSchema = z.enum([
   "court_verdict_reverted",
   "shop_purchase",
   "manual_adjustment",
+  "focus_completed",
 ]);
 export type GameEventKind = z.infer<typeof GameEventKindSchema>;
 

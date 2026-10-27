@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, LogOut, Trash2 } from "lucide-react";
+import { availableTitles, levelFromXp } from "@life-os/core";
+import { achievementsFor } from "@life-os/api";
 import { Achievements } from "@/components/Achievements";
 import { AttributeGrid, CharacterSummary } from "@/components/game";
 import { Button } from "@/components/ui/button";
@@ -11,11 +13,13 @@ import { useGame } from "@/state/GameProvider";
 const CLASSES = ["Abenteurer", "Krieger", "Gelehrter", "Stratege", "Händler", "Waldläufer", "Paladin"];
 
 export function CharacterPage() {
-  const { snap, run, notify } = useGame();
+  const { snap, run, notify, today } = useGame();
   const c = snap.character;
   const [name, setName] = useState(c.name);
   const [className, setClassName] = useState(c.className);
   const [avatar, setAvatar] = useState(c.avatar);
+  const [title, setTitle] = useState(c.title);
+  const titles = availableTitles(levelFromXp(c.totalXp).level, achievementsFor(snap, today));
   const history = [...snap.events].reverse().slice(0, 40);
 
   return (
@@ -28,7 +32,7 @@ export function CharacterPage() {
             className="space-y-3"
             onSubmit={async (e) => {
               e.preventDefault();
-              await run((s) => s.updateCharacter({ name: name.trim() || "Held", className, avatar: avatar.slice(0, 2) }));
+              await run((s) => s.updateCharacter({ name: name.trim() || "Held", className, avatar: avatar.slice(0, 2), title }));
               notify("info", "Charakter gespeichert.");
             }}
           >
@@ -49,6 +53,17 @@ export function CharacterPage() {
                 <Label htmlFor="c-avatar">Avatar-Symbol (Emoji/Initial)</Label>
                 <Input id="c-avatar" value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="⚔️" />
               </div>
+            </div>
+            <div>
+              <Label>Titel (freigeschaltet durch Level und Achievements)</Label>
+              <select className="h-9 w-full rounded-md border border-border bg-bg/60 px-3 text-sm" value={title} onChange={(e) => setTitle(e.target.value)}>
+                <option value="">Automatisch – aktueller Level-Titel</option>
+                {titles.map((t) => (
+                  <option key={t.title} value={t.title}>
+                    {t.title} ({t.source})
+                  </option>
+                ))}
+              </select>
             </div>
             <Button variant="gold" type="submit">
               Speichern

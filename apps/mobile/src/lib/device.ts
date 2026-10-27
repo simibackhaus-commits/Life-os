@@ -39,8 +39,17 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export async function rescheduleReminders(snap: Snapshot, today: string): Promise<number> {
   if (Platform.OS === "web") return 0;
   await Notifications.cancelAllScheduledNotificationsAsync();
-  if (!(await getPref("reminders"))) return 0;
   const now = Date.now();
+  // Laufender Fokus-Dungeon: Benachrichtigung zum Ende (auch ohne Quest-Erinnerungen, sofern erlaubt)
+  const running = snap.focusSessions.find((f) => f.status === "laufend");
+  const end = running ? Date.parse(running.startedAt) + running.minutes * 60_000 : 0;
+  if (running && end > now + 5_000 && (await Notifications.getPermissionsAsync()).granted) {
+    await Notifications.scheduleNotificationAsync({
+      content: { title: "🏆 Dungeon geschafft!", body: "Öffne LIFE OS, um deine Belohnung abzuholen." },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(end) },
+    });
+  }
+  if (!(await getPref("reminders"))) return 0;
   const items = [0, 1, 2]
     .flatMap((d) => todaysItems(snap, addDays(today, d)))
     .filter((i) => i.status === "offen" && i.time && i.dueAt && new Date(i.dueAt).getTime() > now + 30_000)

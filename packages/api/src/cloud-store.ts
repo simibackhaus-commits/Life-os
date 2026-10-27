@@ -21,6 +21,10 @@ import {
   type FinanceEntryInput,
   type Workout,
   type WorkoutInput,
+  FocusStartSchema,
+  type FocusSession,
+  type FocusStartInput,
+  type FocusFinishResult,
   type UnlockCheck,
 } from "@life-os/core";
 
@@ -111,6 +115,27 @@ const financeFromRow = (r: FinanceRow): FinanceEntry => ({
   date: r.date,
   goalId: r.goal_id,
   createdAt: r.created_at,
+});
+
+interface FocusRow {
+  id: string;
+  dungeon: string;
+  attribute: FocusSession["attribute"];
+  intent: string;
+  minutes: number;
+  started_at: string;
+  finished_at: string | null;
+  status: FocusSession["status"];
+}
+const focusFromRow = (r: FocusRow): FocusSession => ({
+  id: r.id,
+  dungeonId: r.dungeon,
+  attribute: r.attribute,
+  intent: r.intent,
+  minutes: r.minutes,
+  startedAt: r.started_at,
+  finishedAt: r.finished_at,
+  status: r.status,
 });
 
 interface PurchaseRow {
@@ -277,7 +302,7 @@ export class CloudStore implements DataStore {
   async load(): Promise<Snapshot> {
     try {
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-      const [ch, quests, inst, events, cases, msgs, items, buys, skills, lifetime, goals, workouts, finance] = await Promise.all([
+      const [ch, quests, inst, events, cases, msgs, items, buys, skills, lifetime, goals, workouts, finance, focus] = await Promise.all([
         this.sb.from("characters").select("*").eq("user_id", this.userId).single(),
         this.sb.from("quests").select("*").neq("status", "archiviert").order("created_at"),
         this.sb.from("quest_instances").select("*").or(`completed_at.gte.${since},completed_at.is.null`),
@@ -291,6 +316,7 @@ export class CloudStore implements DataStore {
         this.sb.from("goals").select("*").neq("status", "archiviert").order("created_at"),
         this.sb.from("workouts").select("*").order("date", { ascending: false }).limit(300),
         this.sb.from("finance_entries").select("*").order("date", { ascending: false }).limit(500),
+        this.sb.from("focus_sessions").select("*").order("started_at", { ascending: false }).limit(50),
       ]);
       this.last = {
         character: characterFromRow(unwrap<CharacterRow>(ch)),
@@ -325,6 +351,7 @@ export class CloudStore implements DataStore {
         goals: ((goals.data ?? []) as GoalRow[]).map(goalFromRow),
         workouts: ((workouts.data ?? []) as WorkoutRow[]).map(workoutFromRow),
         financeEntries: ((finance.data ?? []) as FinanceRow[]).map(financeFromRow),
+        focusSessions: ((focus.data ?? []) as FocusRow[]).map(focusFromRow),
       };
       if (this.syncState === "offline" && this.outbox.list().length === 0) this.setSync("synchron");
       return this.last;
@@ -395,11 +422,12 @@ export class CloudStore implements DataStore {
     return r.applied;
   }
 
-  async updateCharacter(patch: { name?: string; className?: string; avatar?: string }) {
+  async updateCharacter(patch: { name?: string; className?: string; avatar?: string; title?: string }) {
     const row: Record<string, string> = {};
     if (patch.name !== undefined) row.name = patch.name;
     if (patch.className !== undefined) row.class_name = patch.className;
     if (patch.avatar !== undefined) row.avatar = patch.avatar;
+    if (patch.title !== undefined) row.title = patch.title;
     unwrap(await this.sb.from("characters").update(row).eq("user_id", this.userId));
     this.emit();
   }
@@ -539,8 +567,32 @@ export class CloudStore implements DataStore {
     this.emit();
   }
 
+  async startFocus(input: FocusStartInput): Promise<FocusSession> {
+    const d = FocusStartSchema.parse(input);
+    const id = crypto.randomUUID();
+    const r = unwrap<{ ok: boolean; reason?: string; started_at?: string; minutes?: number }>(
+      await this.sb.rpc("start_focus_session", { p_id: id, p_dungeon: d.dungeonId, p_attribute: d.attribute, p_intent: d.intent }),
+    );
+    if (!r.ok) throw new Error(r.reason === "already_running" ? "Es läuft bereits ein Dungeon." : "Dungeon konnte nicht gestartet werden.");
+    this.emit();
+    return { id, dungeonId: d.dungeonId, attribute: d.attribute, intent: d.intent, minutes: r.minutes!, startedAt: r.started_at!, finishedAt: null, status: "laufend" };
+  }
+
+  async finishFocus(id: string): Promise<FocusFinishResult> {
+    const r = unwrap<{ applied: boolean; reason?: string; xp?: number; coins?: number }>(
+      await this.sb.rpc("finish_focus_session", { p_id: id, p_event_id: crypto.randomUUID() }),
+    );
+    this.emit();
+    return r.applied ? { applied: true, xp: r.xp ?? 0, coins: r.coins ?? 0 } : { applied: false, reason: (r.reason ?? "not_found") as "not_found" };
+  }
+
+  async abandonFocus(id: string) {
+    unwrap(await this.sb.rpc("abandon_focus_session", { p_id: id }));
+    this.emit();
+  }
+
   async exportData() {
-    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages", "shop_items", "shop_purchases", "skills_unlocked", "workouts", "finance_entries"];
+    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages", "shop_items", "shop_purchases", "skills_unlocked", "workouts", "finance_entries", "focus_sessions"];
     const out: Record<string, unknown> = { exportedAt: new Date().toISOString(), version: 1 };
     for (const t of tables) out[t] = unwrap(await this.sb.from(t).select("*"));
     return out;

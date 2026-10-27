@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { ATTRIBUTE_CURVE, computeReward, levelFromXp, xpToNext } from "@life-os/core";
+import { ATTRIBUTE_CURVE, DUNGEONS, computeReward, levelFromXp, xpToNext } from "@life-os/core";
 
 /**
  * Führt die echten Migrationen gegen Postgres (PGlite, WASM) aus.
@@ -45,9 +45,9 @@ beforeAll(async () => {
   }
   await db.exec(`
     grant select, insert, update, delete on all tables in schema public to authenticated;
-    revoke update on public.characters from authenticated; grant update (name, avatar, class_name) on public.characters to authenticated;
+    revoke update on public.characters from authenticated; grant update (name, avatar, class_name, title) on public.characters to authenticated;
     revoke update on public.court_cases from authenticated; grant update (plea) on public.court_cases to authenticated;
-    revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases, public.skills_unlocked from authenticated;
+    revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases, public.skills_unlocked, public.focus_sessions from authenticated;
     revoke update on public.finance_entries from authenticated;
     insert into auth.users (id) values ('${USER_A}'), ('${USER_B}');
   `);
@@ -304,6 +304,40 @@ describe("Module: Finanzen und Sport", () => {
     await expect(as(USER_B, () => db.query("insert into public.workouts (date, kind, duration_min) values ('2026-10-27', 'yoga-fliegen', 30)"))).rejects.toThrow();
     const other = await as(USER_A, () => db.query("select * from public.workouts"));
     expect(other.rows).toHaveLength(0);
+  });
+});
+
+describe("Fokus-Dungeons und Titel", () => {
+  const sid = "33333333-3333-4333-8333-333333333333";
+  it("dungeon_spec stimmt mit packages/core überein", async () => {
+    for (const d of DUNGEONS) {
+      const r = await one<{ minutes: number; xp: number; coins: number }>("select * from public.dungeon_spec($1)", [d.id]);
+      expect(r).toEqual({ minutes: d.minutes, xp: d.xp, coins: d.coins });
+    }
+  });
+
+  it("Belohnung erst nach Ablauf der Serverzeit, genau einmal, nur eine Sitzung gleichzeitig", async () => {
+    const start = (id: string) => as(USER_B, () => one<{ r: { ok: boolean; reason?: string } }>("select public.start_focus_session($1, 'hoehle', 'intelligenz', 'Bericht') as r", [id]));
+    const finish = (e: string) => as(USER_B, () => one<{ r: { applied: boolean; reason?: string; xp?: number } }>("select public.finish_focus_session($1, $2) as r", [sid, e]));
+    expect((await start(sid)).r.ok).toBe(true);
+    expect((await start("44444444-4444-4444-8444-444444444444")).r).toEqual({ ok: false, reason: "already_running" });
+    expect((await finish(ev(60))).r).toEqual({ applied: false, reason: "too_early" });
+
+    const before = await one<{ xp: number }>("select total_xp::int as xp from public.characters where user_id = $1", [USER_B]);
+    await db.query("update public.focus_sessions set started_at = now() - interval '25 minutes' where id = $1", [sid]); // Zeit vergehen lassen
+    expect((await finish(ev(61))).r).toEqual({ applied: true, xp: 30, coins: 6 });
+    expect((await finish(ev(62))).r).toEqual({ applied: false, reason: "not_running" });
+    const after = await one<{ xp: number }>("select total_xp::int as xp from public.characters where user_id = $1", [USER_B]);
+    expect(after.xp - before.xp).toBe(30);
+
+    await expect(as(USER_B, () => db.query("update public.focus_sessions set started_at = now() - interval '2 hours'"))).rejects.toThrow(/permission denied/);
+  });
+
+  it("Titel ist wählbar, XP weiterhin nicht", async () => {
+    await as(USER_B, () => db.query("update public.characters set title = 'Sparfuchs'"));
+    const r = await one<{ title: string }>("select title from public.characters where user_id = $1", [USER_B]);
+    expect(r.title).toBe("Sparfuchs");
+    await expect(as(USER_B, () => db.query("update public.characters set total_xp = 99999"))).rejects.toThrow(/permission denied/);
   });
 });
 

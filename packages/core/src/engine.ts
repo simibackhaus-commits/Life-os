@@ -210,3 +210,14 @@ export function bossHp(q: Pick<Quest, "type" | "subtasks" | "status">): { max: n
   const hits = q.subtasks.filter((s) => s.done).length;
   return { max, current: q.subtasks.length ? max - hits : max };
 }
+
+/** Fokus-Dungeon geschafft (lokaler Modus). Server: public.finish_focus_session() prüft die abgelaufene Zeit. */
+export function completeFocus(
+  state: GameState,
+  input: { eventId: string; xp: number; coins: number; attribute: Attribute; title: string; now: string },
+): { state: GameState; applied: boolean } {
+  if (state.events.some((ev) => ev.id === input.eventId)) return { state, applied: false };
+  const attr = { [input.attribute]: input.xp } as Partial<Record<Attribute, number>>;
+  const event: GameEvent = { id: input.eventId, kind: "focus_completed", xpDelta: input.xp, coinDelta: input.coins, attributeXp: attr, refId: null, note: input.title, createdAt: input.now };
+  return { applied: true, state: { ...state, character: applyDeltas(state.character, input.xp, input.coins, attr), events: [...state.events, event] } };
+}

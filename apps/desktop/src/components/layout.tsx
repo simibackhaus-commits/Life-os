@@ -14,6 +14,8 @@ import {
   Send,
   Settings,
   ShoppingBag,
+  Sprout,
+  Swords,
   User,
   Wifi,
   WifiOff,
@@ -26,7 +28,7 @@ import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";
 import { Badge, Card, CardTitle, Input } from "./ui/primitives";
 
-export type Page = "dashboard" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "career" | "fitness" | "finance" | "stats" | "settings";
+export type Page = "dashboard" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "dungeons" | "garden" | "career" | "fitness" | "finance" | "stats" | "settings";
 
 const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: number }> = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} /> },
@@ -36,6 +38,8 @@ const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: numb
   { id: "skills", label: "Skilltree", icon: <Network size={17} /> },
   { id: "court", label: "Gericht", icon: <Gavel size={17} /> },
   { id: "shop", label: "Shop", icon: <ShoppingBag size={17} /> },
+  { id: "dungeons", label: "Dungeons", icon: <Swords size={17} /> },
+  { id: "garden", label: "Garten", icon: <Sprout size={17} /> },
   { id: "career", label: "Karriere", icon: <Briefcase size={17} /> },
   { id: "fitness", label: "Fitness", icon: <Dumbbell size={17} /> },
   { id: "finance", label: "Finanzen", icon: <PiggyBank size={17} /> },

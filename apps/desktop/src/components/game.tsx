@@ -23,7 +23,7 @@ export function CharacterSummary({ character }: { character: Character }) {
           <div className="flex items-baseline gap-2">
             <h2 className="truncate font-display text-xl text-text">{character.name}</h2>
             <span className="text-xs text-muted">
-              {titleForLevel(lvl.level)} · {character.className}
+              {character.title && character.title !== "Neuling" ? character.title : titleForLevel(lvl.level)} · {character.className}
             </span>
           </div>
           <div className="mt-1 flex items-center gap-3">

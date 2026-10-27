@@ -84,7 +84,7 @@ export function CharacterHeader({ character }: { character: Character }) {
             {character.name}
           </Text>
           <Text style={s.small}>
-            {titleForLevel(lvl.level)} · {character.className}
+            {character.title && character.title !== "Neuling" ? character.title : titleForLevel(lvl.level)} · {character.className}
           </Text>
           <View style={[s.row, { gap: 14 }]}>
             <Text style={{ color: colors.gold, fontWeight: "700" }}>Level {lvl.level}</Text>

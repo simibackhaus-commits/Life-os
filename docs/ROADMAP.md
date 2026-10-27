@@ -68,7 +68,19 @@ Edge Functions sind deployt (`--use-api`, ohne Docker). Ohne `ANTHROPIC_API_KEY`
 | Business (Projekte mit Aufgaben, Delegation, Fristen, Führungsroutinen) | FERTIG | Projektfortschritt aus verknüpften Quests; Desktop im Browser geprüft |
 | Module auf dem iPhone | FERTIG (Web-Vorschau) | Kompakte Erfassung: Einzahlen/Ausgabe, Training + Quest-Verknüpfung, Projektaufgaben |
 
-## Phase 4 – Lebendige Spielwelt (GEPLANT)
+## Phase 4 – Lebendige Spielwelt (IN ARBEIT, kostenfrei)
+
+Vorgabe des Nutzers (2026-10-27): vorerst nur Bausteine ohne laufende Kosten (keine KI, kein Apple-Konto, keine Bezahldienste).
+
+| Baustein | Status | Nachweis / Hinweis |
+|---|---|---|
+| Fokus-Dungeons (25/50/90 min, XP/Coins nach Serverzeit) | FERTIG | `start/finish/abandon_focus_session()`, Startzeit vom Server, max. 1 laufende Sitzung; 3 DB-Tests + Store-Test; Desktop im Browser geprüft (+30 XP); iPhone: Benachrichtigung zum Ende |
+| Habit Garden | FERTIG | Pflanzenstufen aus Serien, Welken bei Abbruch; Desktop im Browser geprüft |
+| Avatar & wählbare Titel | FERTIG | Titel aus Level und Achievements; Spalte `title` vom Spieler änderbar (rein kosmetisch) |
+| Hauptquartier, Storysystem, Saison-Events | GEPLANT | kostenfrei umsetzbar |
+| Externe Integrationen | GEPLANT | Google Calendar/Strava kostenlos, aber OAuth-Einrichtung durch den Nutzer nötig; Apple Health nur mit nativer App |
+
+Ursprünglicher Umfang:
 Hauptquartier, Avatar, Storysystem, Saison-Events, Habit Garden, Fokus-Dungeons, Animationen, externe Integrationen (Google/Outlook/Apple Calendar, Gmail, Strava, Garmin, Apple Health, WhatsApp Business API). Keine Integration gilt als fertig, bevor sie live getestet wurde.
 
 ## Sitzungsprotokoll

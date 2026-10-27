@@ -15,6 +15,14 @@ import {
   GoalDraftSchema,
   FinanceEntrySchema,
   WorkoutSchema,
+  FocusStartSchema,
+  DUNGEON_BY_ID,
+  FOCUS_TOLERANCE_SECONDS,
+  completeFocus,
+  focusRemaining,
+  type FocusSession,
+  type FocusStartInput,
+  type FocusFinishResult,
   type Goal,
   type GoalDraftInput,
   type FinanceEntry,
@@ -55,7 +63,7 @@ function emptySnapshot(): Snapshot {
     coins: 0,
     attributeXp: {} as Character["attributeXp"],
   };
-  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [], shopItems: [], purchases: [], skills: [], goals: [], workouts: [], financeEntries: [] };
+  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [], shopItems: [], purchases: [], skills: [], goals: [], workouts: [], financeEntries: [], focusSessions: [] };
 }
 
 /**
@@ -136,7 +144,7 @@ export class LocalStore implements DataStore {
     return r.applied;
   }
 
-  async updateCharacter(patch: { name?: string; className?: string; avatar?: string }) {
+  async updateCharacter(patch: { name?: string; className?: string; avatar?: string; title?: string }) {
     this.commit({ ...this.snap, character: { ...this.snap.character, ...patch } });
   }
 
@@ -358,6 +366,32 @@ export class LocalStore implements DataStore {
 
   async deleteWorkout(id: string) {
     this.commit({ ...this.snap, workouts: this.snap.workouts.filter((w) => w.id !== id) });
+  }
+
+  async startFocus(input: FocusStartInput) {
+    const d = FocusStartSchema.parse(input);
+    if (this.snap.focusSessions.some((f) => f.status === "laufend")) throw new Error("Es läuft bereits ein Dungeon.");
+    const spec = DUNGEON_BY_ID.get(d.dungeonId)!;
+    const s: FocusSession = { id: this.uuid(), dungeonId: d.dungeonId, attribute: d.attribute, intent: d.intent, minutes: spec.minutes, startedAt: this.now().toISOString(), finishedAt: null, status: "laufend" };
+    this.commit({ ...this.snap, focusSessions: [s, ...this.snap.focusSessions].slice(0, 50) });
+    return s;
+  }
+
+  async finishFocus(id: string): Promise<FocusFinishResult> {
+    const s = this.snap.focusSessions.find((f) => f.id === id);
+    if (!s) return { applied: false, reason: "not_found" };
+    if (s.status !== "laufend") return { applied: false, reason: "not_running" };
+    if (focusRemaining(s, this.now().getTime()) > FOCUS_TOLERANCE_SECONDS) return { applied: false, reason: "too_early" };
+    const spec = DUNGEON_BY_ID.get(s.dungeonId)!;
+    const now = this.now().toISOString();
+    const { state } = completeFocus(this.snap, { eventId: this.uuid(), xp: spec.xp, coins: spec.coins, attribute: s.attribute, title: spec.title, now });
+    this.commit({ ...this.snap, ...state, focusSessions: this.snap.focusSessions.map((f) => (f.id === id ? { ...f, status: "geschafft" as const, finishedAt: now } : f)) });
+    return { applied: true, xp: spec.xp, coins: spec.coins };
+  }
+
+  async abandonFocus(id: string) {
+    const now = this.now().toISOString();
+    this.commit({ ...this.snap, focusSessions: this.snap.focusSessions.map((f) => (f.id === id && f.status === "laufend" ? { ...f, status: "abgebrochen" as const, finishedAt: now } : f)) });
   }
 
   async exportData() {

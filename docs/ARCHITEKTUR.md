@@ -57,5 +57,9 @@ Bosskampf = Quest vom Typ `boss`, Trefferpunkte = Teilaufgaben, keine eigene Tab
 Business, Sport und Finanzen speichern Aufzeichnungen (`goals`, `workouts`, `finance_entries`), vergeben aber selbst keine XP/Coins – sonst bräuchte jede Eingabe eine eigene Serverprüfung gegen Missbrauch. Die Verbindung zum Spiel läuft über Quests: Projekte/Ziele sammeln Quests (`quests.goal_id`), Trainingspläne und Sparraten erzeugen wiederkehrende Quests, ein erfasstes Training kann heutige Sport-Quests abhaken (über `complete_quest_instance()`).
 Einzahlungen erhöhen den Zielstand per Datenbank-Trigger; Buchungen sind unveränderlich (löschen + neu), damit der Stand konsistent bleibt. Delegation ist ein Quest-Feld (`delegated_to`).
 
+## ADR-15 – Fokus-Dungeons mit Serverzeit
+Ein Timer im Client lässt sich trivial manipulieren. Deshalb setzt `start_focus_session()` die Startzeit mit der Serveruhr, und `finish_focus_session()` vergibt XP/Coins nur, wenn `now() >= started_at + Dauer − 30 s`. Clients haben keine Schreibrechte auf `focus_sessions`. Ein eindeutiger Teilindex erlaubt höchstens eine laufende Sitzung pro Nutzer. Neue Ereignisart `focus_completed`.
+Habit Garden und Titel sind reine Darstellung aus vorhandenen Daten (Serien, Achievements); `characters.title` ist für den Spieler beschreibbar, weil kosmetisch.
+
 ## ADR-10 – Datenbanktests ohne Docker
 Docker ist auf dem Entwicklungsrechner nicht immer aktiv. → Migrationen werden in Vitest gegen PGlite (Postgres als WASM) mit minimalem `auth`-Stub ausgeführt: Regelparität, Idempotenz, RLS, Spaltenrechte, Gerichtsgrenzen, Accountlöschung. Ersetzt keinen Test gegen echtes Supabase (Realtime, Auth, PostgREST) – der steht in der Roadmap.

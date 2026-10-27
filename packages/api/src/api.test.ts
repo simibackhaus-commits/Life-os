@@ -140,6 +140,24 @@ describe("LocalStore", () => {
     await expect(store.logWorkout({ date: "2026-10-27", kind: "laufen", durationMin: 0 })).rejects.toThrow();
   });
 
+  it("Fokus-Dungeon: zu früh beendet bringt nichts, nach Ablauf genau einmal XP", async () => {
+    let clock = Date.parse("2026-10-27T10:00:00.000Z");
+    const store = new LocalStore(new MemoryStorage(), () => crypto.randomUUID(), () => new Date(clock));
+    const s1 = await store.startFocus({ dungeonId: "hoehle", attribute: "intelligenz", intent: "Bericht" });
+    await expect(store.startFocus({ dungeonId: "turm", attribute: "karriere" })).rejects.toThrow(/bereits/);
+    clock += 10 * 60_000;
+    expect(await store.finishFocus(s1.id)).toEqual({ applied: false, reason: "too_early" });
+    clock += 15 * 60_000;
+    expect(await store.finishFocus(s1.id)).toEqual({ applied: true, xp: 30, coins: 6 });
+    expect(await store.finishFocus(s1.id)).toEqual({ applied: false, reason: "not_running" });
+    const s = await store.load();
+    expect(s.character.totalXp).toBe(30);
+    expect(s.character.attributeXp.intelligenz).toBe(30);
+    const s2 = await store.startFocus({ dungeonId: "turm", attribute: "karriere" });
+    await store.abandonFocus(s2.id);
+    expect((await store.load()).focusSessions.map((f) => f.status)).toEqual(["abgebrochen", "geschafft"]);
+  });
+
   it("Quick-Add nutzt offline den Parser", async () => {
     const store = new LocalStore(new MemoryStorage());
     const r = await store.quickAdd("Jeden Tag morgens und abends Zähne putzen");

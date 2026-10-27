@@ -3,6 +3,9 @@ import type {
   Consequence,
   Excuse,
   GameState,
+  FocusSession,
+  FocusStartInput,
+  FocusFinishResult,
   Goal,
   GoalDraftInput,
   FinanceEntry,
@@ -62,6 +65,8 @@ export interface Snapshot extends GameState {
   goals: Goal[];
   workouts: Workout[];
   financeEntries: FinanceEntry[];
+  /** Letzte Fokus-Sitzungen (neueste zuerst). */
+  focusSessions: FocusSession[];
   /** Gesamtzähler vom Server (nur Cloud). */
   lifetime?: LifetimeStats;
 }
@@ -105,7 +110,7 @@ export interface DataStore {
   updateQuest(id: string, patch: QuestPatch): Promise<void>;
   completeOccurrence(input: { questId: string; occurrenceKey: string; dueAt: string | null }): Promise<CompletionOutcome>;
   uncomplete(instanceId: string): Promise<boolean>;
-  updateCharacter(patch: { name?: string; className?: string; avatar?: string }): Promise<void>;
+  updateCharacter(patch: { name?: string; className?: string; avatar?: string; title?: string }): Promise<void>;
 
   openCase(input: { questId: string; occurrenceKey: string; charge: string; questXp: number; questCoins: number }): Promise<CourtCase>;
   /** Plädoyer + Aussage. Lokal entscheidet der Regelrichter sofort, in der Cloud verhandelt die KI. */
@@ -130,6 +135,12 @@ export interface DataStore {
   deleteFinanceEntry(id: string): Promise<void>;
   logWorkout(input: WorkoutInput): Promise<Workout>;
   deleteWorkout(id: string): Promise<void>;
+
+  /** Startet einen Fokus-Dungeon (Startzeit setzt der Server). */
+  startFocus(input: FocusStartInput): Promise<FocusSession>;
+  /** Beendet den Dungeon; Belohnung nur, wenn die Zeit laut Server abgelaufen ist. */
+  finishFocus(id: string): Promise<FocusFinishResult>;
+  abandonFocus(id: string): Promise<void>;
 
   exportData(): Promise<unknown>;
   deleteAllData(): Promise<void>;
