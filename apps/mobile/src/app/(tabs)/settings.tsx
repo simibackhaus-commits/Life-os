@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, Share, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -115,8 +116,12 @@ export default function Settings() {
           onClose={() => setConfirmDelete(false)}
         />
 
+        <Card title="Spiel">
+          <Button label="Belohnungsshop" icon="gift" variant="outline" onPress={() => router.push("/shop")} />
+        </Card>
+
         <Card title="Demnächst (Phase 3)">
-          <Text style={s.muted}>Kalender, Shop, Skilltree, Statistiken, Business-, Sport- und Finanzmodule.</Text>
+          <Text style={s.muted}>Kalender, Skilltree, Bosskämpfe, Questketten, Business-, Sport- und Finanzmodule.</Text>
         </Card>
       </ScrollView>
     </SafeAreaView>

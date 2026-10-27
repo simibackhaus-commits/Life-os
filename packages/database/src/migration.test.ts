@@ -47,7 +47,7 @@ beforeAll(async () => {
     grant select, insert, update, delete on all tables in schema public to authenticated;
     revoke update on public.characters from authenticated; grant update (name, avatar, class_name) on public.characters to authenticated;
     revoke update on public.court_cases from authenticated; grant update (plea) on public.court_cases to authenticated;
-    revoke insert, update, delete on public.game_events, public.quest_instances from authenticated;
+    revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases from authenticated;
     insert into auth.users (id) values ('${USER_A}'), ('${USER_B}');
   `);
 });
@@ -204,6 +204,29 @@ describe("Gericht", () => {
         JSON.stringify([{ type: "coins_verlust", amount: 500 }]),
       ]),
     ).rejects.toThrow(/caps/);
+  });
+});
+
+describe("Belohnungsshop", () => {
+  it("Kauf zieht Coins ab, ist idempotent und prüft das Guthaben", async () => {
+    const item = await as(USER_B, () => one<{ id: string }>("insert into public.shop_items (title, cost) values ('Pizza', 30) returning id"));
+    await db.query("update public.characters set coins = 50 where user_id = $1", [USER_B]);
+    const buy = (e: string) => as(USER_B, () => one<{ r: { applied: boolean; reason?: string; coins_after?: number } }>("select public.purchase_shop_item($1, $2) as r", [e, item.id]));
+
+    expect((await buy(ev(40))).r).toEqual({ applied: true, coins_after: 20 });
+    expect((await buy(ev(40))).r).toEqual({ applied: false, reason: "duplicate_event" });
+    expect((await buy(ev(41))).r).toEqual({ applied: false, reason: "insufficient_coins" });
+
+    const p = await as(USER_B, () => db.query("select title, cost from public.shop_purchases"));
+    expect(p.rows).toEqual([{ title: "Pizza", cost: 30 }]);
+  });
+  it("Kauf fremder Belohnungen und direkte Käufe sind nicht möglich", async () => {
+    const item = await as(USER_B, () => one<{ id: string }>("insert into public.shop_items (title, cost) values ('Kino', 1) returning id"));
+    const r = await as(USER_A, () => one<{ r: { reason: string } }>("select public.purchase_shop_item($1, $2) as r", [ev(42), item.id]));
+    expect(r.r.reason).toBe("not_found");
+    await expect(
+      as(USER_B, () => db.query("insert into public.shop_purchases (user_id, title, cost, event_id) values ($1, 'x', 1, $2)", [USER_B, ev(1)])),
+    ).rejects.toThrow(/permission denied/);
   });
 });
 

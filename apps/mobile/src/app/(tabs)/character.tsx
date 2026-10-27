@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Attributes, Button, Card, CharacterHeader } from "@/components/ui";
+import { AchievementList, Attributes, Button, Card, CharacterHeader } from "@/components/ui";
 import { colors, s } from "@/lib/theme";
 import { useGame } from "@/state/GameProvider";
 
@@ -33,6 +33,7 @@ export default function CharacterScreen() {
           </View>
         </Card>
         <Attributes character={c} />
+        <AchievementList />
         <Card title="Charakterhistorie">
           {history.length === 0 ? (
             <Text style={s.muted}>Deine Geschichte beginnt mit der ersten Quest.</Text>

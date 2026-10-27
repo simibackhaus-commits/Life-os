@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Modal, Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { ATTRIBUTES, ATTRIBUTE_CURVE, ATTRIBUTE_LABELS, QUEST_TYPE_LABELS, levelFromXp, titleForLevel, type Character } from "@life-os/core";
-import { questStreak, rewardOf, type OccurrenceItem } from "@life-os/api";
+import { achievementsFor, questStreak, rewardOf, type OccurrenceItem } from "@life-os/api";
 import { attributeColors, colors, questTypeColors, s } from "@/lib/theme";
 import { useGame } from "@/state/GameProvider";
 
@@ -118,6 +118,34 @@ export function Attributes({ character }: { character: Character }) {
             </View>
           );
         })}
+      </View>
+    </Card>
+  );
+}
+
+const TIER_COLOR = { bronze: "#cd7f32", silber: "#cbd5e1", gold: "#e6b450", "legendär": "#8b5cf6" } as const;
+
+export function AchievementList() {
+  const { snap, today } = useGame();
+  const list = achievementsFor(snap, today).sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || b.progress - a.progress);
+  return (
+    <Card title={`Achievements · ${list.filter((a) => a.unlocked).length}/${list.length}`}>
+      <View style={{ gap: 8 }}>
+        {list.map((a) => (
+          <View key={a.def.id} style={[s.row, { gap: 10, opacity: a.unlocked ? 1 : 0.5 }]}>
+            <Text style={{ fontSize: 24 }}>{a.def.icon}</Text>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={{ color: a.unlocked ? TIER_COLOR[a.def.tier] : colors.text, fontWeight: "600" }}>{a.def.title}</Text>
+              <Text style={s.small}>{a.def.description}</Text>
+              {!a.unlocked && a.target > 1 ? <Bar value={a.progress} height={4} color={colors.violet} /> : null}
+            </View>
+            {!a.unlocked && a.target > 1 ? (
+              <Text style={s.small}>
+                {a.current}/{a.target}
+              </Text>
+            ) : null}
+          </View>
+        ))}
       </View>
     </Card>
   );

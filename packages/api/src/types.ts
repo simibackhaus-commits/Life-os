@@ -5,8 +5,12 @@ import type {
   GameState,
   Plea,
   ProtectedReason,
+  PurchaseResult,
   Quest,
   QuestDraftInput,
+  ShopItem,
+  ShopItemDraftInput,
+  ShopPurchase,
   Verdict,
 } from "@life-os/core";
 
@@ -44,6 +48,8 @@ export interface CourtMessage {
 export interface Snapshot extends GameState {
   cases: CourtCase[];
   courtMessages: CourtMessage[];
+  shopItems: ShopItem[];
+  purchases: ShopPurchase[];
 }
 
 export type QuestPatch = Partial<QuestDraftInput> & {
@@ -96,6 +102,11 @@ export interface DataStore {
 
   chat(message: string): Promise<ChatReply>;
   quickAdd(text: string): Promise<QuickAddDraft>;
+
+  createShopItem(input: ShopItemDraftInput): Promise<ShopItem>;
+  updateShopItem(id: string, patch: Partial<ShopItemDraftInput>): Promise<void>;
+  /** Kauft eine Belohnung. Coins werden serverseitig geprüft und abgezogen. */
+  purchase(itemId: string): Promise<PurchaseResult>;
 
   exportData(): Promise<unknown>;
   deleteAllData(): Promise<void>;

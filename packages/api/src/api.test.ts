@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LocalStore, type KeyValueStorage } from "./local-store.ts";
 import { Outbox, type OutboxItem } from "./outbox.ts";
 import { HydratedStorage, STORAGE_KEYS } from "./storage.ts";
+import { achievementsFor, totals } from "./selectors.ts";
 
 class MemoryStorage implements KeyValueStorage {
   m = new Map<string, string>();
@@ -58,6 +59,22 @@ describe("LocalStore", () => {
     expect(appealed.verdict).toBe("freispruch");
     expect(s.character.coins).toBe(10);
     await expect(store.appeal(c3.id, { excuse: "notfall", statement: "" })).rejects.toThrow(/eine Berufung/);
+  });
+
+  it("Shop: Belohnung anlegen, kaufen, Guthaben prüfen", async () => {
+    const store = new LocalStore(new MemoryStorage());
+    const item = await store.createShopItem({ title: "Pizza", cost: 30 });
+    expect(await store.purchase(item.id)).toEqual({ applied: false, reason: "insufficient_coins" });
+    const q = await store.createQuest({ title: "Großprojekt", type: "legendary", difficulty: "episch" });
+    await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
+    const r = await store.purchase(item.id);
+    expect(r).toEqual({ applied: true, coinsAfter: 70 });
+    const s = await store.load();
+    expect(s.purchases).toHaveLength(1);
+    expect(totals(s).coinsSpent).toBe(30);
+    expect(achievementsFor(s, "2026-10-27").find((a) => a.def.id === "belohnt")?.unlocked).toBe(true);
+    await store.updateShopItem(item.id, { active: false });
+    expect(await store.purchase(item.id)).toEqual({ applied: false, reason: "inactive" });
   });
 
   it("Quick-Add nutzt offline den Parser", async () => {

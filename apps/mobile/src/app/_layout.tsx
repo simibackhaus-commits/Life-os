@@ -35,6 +35,10 @@ function Shell({ store }: { store: DataStore }) {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
+          name="shop"
+          options={{ headerShown: true, title: "Belohnungsshop", headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.gold }}
+        />
+        <Stack.Screen
           name="quick-add"
           options={{ presentation: "modal", headerShown: true, title: "Quick-Add", headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.gold }}
         />

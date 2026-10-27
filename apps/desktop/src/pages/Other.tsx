@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Download, LogOut, Trash2 } from "lucide-react";
+import { Achievements } from "@/components/Achievements";
 import { AttributeGrid, CharacterSummary } from "@/components/game";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, Input, Label } from "@/components/ui/primitives";
@@ -55,6 +56,7 @@ export function CharacterPage() {
           </form>
         </Card>
         <AttributeGrid character={c} />
+        <Achievements />
       </div>
       <Card>
         <CardTitle>Charakterhistorie</CardTitle>

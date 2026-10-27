@@ -3,6 +3,7 @@ import {
   addDays,
   computeReward,
   computeStreak,
+  evaluateAchievements,
   occurrencesBetween,
   occurrencesOn,
   type InstanceStatus,
@@ -119,3 +120,48 @@ export function xpPerDay(s: Snapshot, today: string, n = 14) {
 }
 
 export const rewardOf = (q: Quest) => computeReward(q);
+
+/** Achievements für den aktuellen Spielstand. */
+export function achievementsFor(s: Snapshot, today: string) {
+  return evaluateAchievements({ ...s, today });
+}
+
+const WEEKDAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+/** Abschlüsse je Wochentag in den letzten n Tagen. */
+export function completionsByWeekday(s: Snapshot, today: string, days = 30) {
+  const from = addDays(today, -days + 1);
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (const i of s.instances) {
+    if (i.status !== "erledigt" || !i.completedAt) continue;
+    const d = new Date(i.completedAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (key < from || key > today) continue;
+    counts[(d.getDay() + 6) % 7]!++;
+  }
+  return WEEKDAY_NAMES.map((day, i) => ({ day, count: counts[i]! }));
+}
+
+/** Erfüllungsquote je wiederkehrender Quest (vergangene Vorkommen der letzten n Tage, heute ausgenommen). */
+export function questCompletionRates(s: Snapshot, today: string, days = 14) {
+  const done = new Set(
+    s.instances.filter((i) => i.status === "erledigt" || i.status === "entschuldigt").map((i) => `${i.questId}|${i.occurrenceKey}`),
+  );
+  return s.quests
+    .filter((q) => q.status === "aktiv" && q.recurrence)
+    .map((q) => {
+      const from = addDays(today, -days) > q.recurrence!.startDate ? addDays(today, -days) : q.recurrence!.startDate;
+      const occ = occurrencesBetween(q.recurrence!, from, addDays(today, -1));
+      const fulfilled = occ.filter((o) => done.has(`${q.id}|${o.key}`)).length;
+      return { quest: q, scheduled: occ.length, fulfilled, rate: occ.length ? fulfilled / occ.length : null };
+    })
+    .sort((a, b) => (a.rate ?? 2) - (b.rate ?? 2));
+}
+
+/** Summen für Kennzahlen-Kacheln. */
+export function totals(s: Snapshot) {
+  const completions = s.instances.filter((i) => i.status === "erledigt").length;
+  const coinsSpent = s.purchases.reduce((sum, p) => sum + p.cost, 0);
+  const convictions = s.cases.filter((c) => c.verdict && !["freispruch", "einstellung"].includes(c.verdict)).length;
+  return { completions, coinsSpent, convictions, activeQuests: s.quests.filter((q) => q.status === "aktiv").length };
+}

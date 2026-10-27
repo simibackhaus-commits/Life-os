@@ -51,8 +51,20 @@ Letzte Aktualisierung: 2026-10-27 (Sitzung 1)
 
 Edge Functions sind deployt (`--use-api`, ohne Docker). Ohne `ANTHROPIC_API_KEY` urteilt im Cloud-Modus der Regelrichter serverseitig; Spielleiter meldet „KI nicht eingerichtet“.
 
-## Phase 3 – RPG-Erweiterungen (GEPLANT)
-Skilltrees, Shop (Coins ausgeben, `shop_purchase`-Events), Achievements, Bosskämpfe, Questketten, erweiterte Verhandlungen, Statistiken, Kalender, Business-/Sport-/Finanzmodule (an Questsystem und `goals` gekoppelt). In der Seitenleiste bereits als „P3" sichtbar, aber deaktiviert.
+## Phase 3 – RPG-Erweiterungen (IN ARBEIT)
+
+| Baustein | Status | Nachweis / Hinweis |
+|---|---|---|
+| Belohnungsshop (eigene Belohnungen, Kauf mit Coins) | FERTIG (lokal) / IN ARBEIT (Cloud) | Kauf serverseitig über `purchase_shop_item()` (idempotent, Guthabenprüfung, keine Fremdkäufe) – 2 DB-Tests, Engine- und Store-Tests; Desktop im Browser geprüft (100 → 70 Coins). Migration `20261028000000_shop.sql` muss auf Supabase eingespielt sein |
+| Achievements (16, Bronze bis Legendär) | FERTIG | Rein aus dem Spielstand berechnet, keine Tabelle; Desktop-Charakterseite + iPhone-Charakter |
+| Statistiken (Kennzahlen, XP 30 Tage, Wochentage, Attribut-Radar, Erfüllungsquote) | FERTIG (Desktop) | iPhone: geplant |
+| Skilltree | GEPLANT | Abschnitt 2 |
+| Kalender | GEPLANT | Abschnitt 2 |
+| Bosskämpfe (Trefferpunkte, Phasen) und Questketten | GEPLANT | Abschnitt 2 |
+| Erweiterte Gerichtsverhandlungen | GEPLANT | Abschnitt 2 (braucht teils KI) |
+| Business-, Sport-, Finanzmodule | GEPLANT | Abschnitt 3 |
+
+Bekannte Grenze: Der Cloud-Modus lädt die letzten 200 Ereignisse und 120 Tage Instanzen – Langzeit-Achievements (z. B. 100 Quests) zählen nur dieses Fenster. Lösung in Abschnitt 2: serverseitige Zähler.
 
 ## Phase 4 – Lebendige Spielwelt (GEPLANT)
 Hauptquartier, Avatar, Storysystem, Saison-Events, Habit Garden, Fokus-Dungeons, Animationen, externe Integrationen (Google/Outlook/Apple Calendar, Gmail, Strava, Garmin, Apple Health, WhatsApp Business API). Keine Integration gilt als fertig, bevor sie live getestet wurde.

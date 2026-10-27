@@ -8,6 +8,8 @@ import { CourtPage } from "@/pages/Court";
 import { Dashboard } from "@/pages/Dashboard";
 import { AuthPage, CharacterPage, SettingsPage } from "@/pages/Other";
 import { QuestsPage } from "@/pages/Quests";
+import { ShopPage } from "@/pages/Shop";
+import { StatsPage } from "@/pages/Stats";
 import { GameProvider } from "@/state/GameProvider";
 
 function Shell() {
@@ -34,6 +36,8 @@ function Shell() {
         {page === "quests" && <QuestsPage />}
         {page === "character" && <CharacterPage />}
         {page === "court" && <CourtPage />}
+        {page === "shop" && <ShopPage />}
+        {page === "stats" && <StatsPage />}
         {page === "settings" && <SettingsPage />}
       </main>
       <RightPanel onQuickAdd={() => setQuickAdd(true)} goCourt={() => setPage("court")} />

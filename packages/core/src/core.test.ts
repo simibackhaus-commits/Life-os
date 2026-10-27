@@ -6,7 +6,10 @@ import {
   levelFromXp,
   occurrencesBetween,
   occurrencesOn,
+  ShopItemDraftSchema,
+  evaluateAchievements,
   parseQuickAdd,
+  purchaseItem,
   simpleJudge,
   uncompleteInstance,
   validateVerdict,
@@ -163,6 +166,53 @@ describe("Gericht – Regelvalidierung", () => {
   it("Verwarnung erlaubt keine Coin-Strafe", () => {
     const r = validateVerdict({ verdict: "verwarnung", reasoning: "Erstes Versäumnis, glaubhafte Reue gezeigt.", consequences: [{ type: "coins_verlust", amount: 3 }] }, ctx);
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("Belohnungsshop", () => {
+  const item = { id: uuid(500), title: "Serie", cost: 30, active: true };
+  it("zieht Coins ab und ist idempotent", () => {
+    const s = { ...baseState(), character: { ...baseState().character, coins: 50 } };
+    const a = purchaseItem(s, { eventId: uuid(600), item, now: "2026-10-27T10:00:00Z" });
+    expect(a.result).toEqual({ applied: true, coinsAfter: 20 });
+    expect(a.state.events.at(-1)?.kind).toBe("shop_purchase");
+    expect(purchaseItem(a.state, { eventId: uuid(600), item, now: "x" }).result).toEqual({ applied: false, reason: "duplicate_event" });
+  });
+  it("verweigert Kauf ohne genug Coins oder bei inaktiver Belohnung", () => {
+    const s = { ...baseState(), character: { ...baseState().character, coins: 10 } };
+    expect(purchaseItem(s, { eventId: uuid(601), item, now: "x" }).result).toEqual({ applied: false, reason: "insufficient_coins" });
+    expect(purchaseItem(s, { eventId: uuid(602), item: { ...item, cost: 5, active: false }, now: "x" }).result).toEqual({ applied: false, reason: "inactive" });
+  });
+  it("validiert Belohnungen", () => {
+    expect(ShopItemDraftSchema.safeParse({ title: "x", cost: 0 }).success).toBe(false);
+    expect(ShopItemDraftSchema.parse({ title: "Pizza", cost: 150 }).icon).toBe("🎁");
+  });
+});
+
+describe("Achievements", () => {
+  it("erste Quest und Fortschritt", () => {
+    const s = baseState();
+    let list = evaluateAchievements({ ...s, today: "2026-10-27" });
+    expect(list.find((a) => a.def.id === "erste_quest")?.unlocked).toBe(false);
+    const done = completeInstance(s, { eventId: uuid(700), instanceId: uuid(701), questId: uuid(1), occurrenceKey: "2026-10-27T07:00", dueAt: null, now: "2026-10-27T06:30:00" }).state;
+    list = evaluateAchievements({ ...done, today: "2026-10-27" });
+    expect(list.find((a) => a.def.id === "erste_quest")?.unlocked).toBe(true);
+    const ten = list.find((a) => a.def.id === "quests_10")!;
+    expect(ten.current).toBe(1);
+    expect(ten.progress).toBeCloseTo(0.1);
+  });
+  it("Serie aus wiederkehrender Quest", () => {
+    const s = baseState();
+    const instances = Array.from({ length: 7 }, (_, i) => ["07:00", "21:00"].map((t, j) => ({
+      id: uuid(800 + i * 2 + j), questId: uuid(1), occurrenceKey: `2026-10-${String(20 + i).padStart(2, "0")}T${t}`, dueAt: null, status: "erledigt" as const, completedAt: "2026-10-20T12:00:00Z", eventId: null,
+    }))).flat();
+    const list = evaluateAchievements({ ...s, instances, today: "2026-10-27" });
+    expect(list.find((a) => a.def.id === "serie_7")?.unlocked).toBe(true);
+  });
+  it("Gerichts-Achievements", () => {
+    const list = evaluateAchievements({ ...baseState(), today: "2026-10-27", cases: [{ verdict: "freispruch", plea: "nicht_schuldig" }] });
+    expect(list.find((a) => a.def.id === "freispruch")?.unlocked).toBe(true);
+    expect(list.find((a) => a.def.id === "gestaendnis")?.unlocked).toBe(false);
   });
 });
 

@@ -3,6 +3,7 @@ import { levelFromXp } from "./leveling.ts";
 import { ONCE_KEY } from "./recurrence.ts";
 import { computeReward, type Reward } from "./rewards.ts";
 import type { Attribute, Character, GameEvent, Quest, QuestInstance } from "./schemas.ts";
+import { checkPurchase, type PurchaseResult, type ShopItem } from "./shop.ts";
 
 /**
  * Reine Spiel-Engine für den lokalen/Offline-Modus.
@@ -133,6 +134,29 @@ export function uncompleteInstance(
       events: [...state.events, event],
     },
   };
+}
+
+/** Kauf im Belohnungsshop: Coins abziehen, Ereignis buchen. Idempotent über die Event-ID. */
+export function purchaseItem(
+  state: GameState,
+  input: { eventId: string; item: Pick<ShopItem, "id" | "title" | "cost" | "active"> | undefined; now: string },
+): { state: GameState; result: PurchaseResult } {
+  if (state.events.some((e) => e.id === input.eventId)) return { state, result: { applied: false, reason: "duplicate_event" } };
+  const blocked = checkPurchase(state.character.coins, input.item);
+  if (blocked) return { state, result: blocked };
+  const item = input.item!;
+  const event: GameEvent = {
+    id: input.eventId,
+    kind: "shop_purchase",
+    xpDelta: 0,
+    coinDelta: -item.cost,
+    attributeXp: {},
+    refId: item.id,
+    note: item.title,
+    createdAt: input.now,
+  };
+  const character = applyDeltas(state.character, 0, -item.cost, {});
+  return { state: { ...state, character, events: [...state.events, event] }, result: { applied: true, coinsAfter: character.coins } };
 }
 
 /** Bucht die Konsequenzen eines Urteils (oder deren Rücknahme mit sign = -1). */

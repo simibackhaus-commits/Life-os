@@ -43,7 +43,7 @@ export default function Today() {
             <Button label="Quick-Add" icon="add-circle" onPress={() => router.push("/quick-add")} />
           </View>
           <View style={{ flex: 1 }}>
-            <Button label="Gericht" icon="hammer" variant="outline" onPress={() => router.push("/court")} />
+            <Button label="Shop" icon="gift" variant="outline" onPress={() => router.push("/shop")} />
           </View>
         </View>
 

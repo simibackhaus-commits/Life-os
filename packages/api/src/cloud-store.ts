@@ -5,8 +5,31 @@ import {
   levelFromXp,
   localToday,
   parseQuickAdd,
+  ShopItemDraftSchema,
+  type PurchaseResult,
   type Quest,
+  type ShopItem,
+  type ShopItemDraftInput,
 } from "@life-os/core";
+
+interface ShopItemRow {
+  id: string;
+  title: string;
+  description: string;
+  cost: number;
+  icon: string;
+  active: boolean;
+  created_at: string;
+}
+
+interface PurchaseRow {
+  id: string;
+  item_id: string | null;
+  title: string;
+  cost: number;
+  event_id: string;
+  purchased_at: string;
+}
 import {
   characterFromRow,
   eventFromRow,
@@ -163,13 +186,15 @@ export class CloudStore implements DataStore {
   async load(): Promise<Snapshot> {
     try {
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-      const [ch, quests, inst, events, cases, msgs] = await Promise.all([
+      const [ch, quests, inst, events, cases, msgs, items, buys] = await Promise.all([
         this.sb.from("characters").select("*").eq("user_id", this.userId).single(),
         this.sb.from("quests").select("*").neq("status", "archiviert").order("created_at"),
         this.sb.from("quest_instances").select("*").or(`completed_at.gte.${since},completed_at.is.null`),
         this.sb.from("game_events").select("*").order("created_at", { ascending: false }).limit(200),
         this.sb.from("court_cases").select("*").order("created_at", { ascending: false }).limit(50),
         this.sb.from("court_messages").select("*").order("created_at").limit(500),
+        this.sb.from("shop_items").select("*").order("cost"),
+        this.sb.from("shop_purchases").select("*").order("purchased_at", { ascending: false }).limit(100),
       ]);
       this.last = {
         character: characterFromRow(unwrap<CharacterRow>(ch)),
@@ -180,6 +205,24 @@ export class CloudStore implements DataStore {
         courtMessages: unwrap<Array<{ id: string; case_id: string; role: CourtMessage["role"]; content: string; created_at: string }>>(msgs).map(
           (m) => ({ id: m.id, caseId: m.case_id, role: m.role, content: m.content, createdAt: m.created_at }),
         ),
+        // Shop-Tabellen kommen aus einer späteren Migration – fehlen sie, bleibt der Rest nutzbar.
+        shopItems: (items.data ?? []).map((r: ShopItemRow) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          cost: r.cost,
+          icon: r.icon,
+          active: r.active,
+          createdAt: r.created_at,
+        })),
+        purchases: (buys.data ?? []).map((r: PurchaseRow) => ({
+          id: r.id,
+          itemId: r.item_id,
+          title: r.title,
+          cost: r.cost,
+          eventId: r.event_id,
+          purchasedAt: r.purchased_at,
+        })),
       };
       if (this.syncState === "offline" && this.outbox.list().length === 0) this.setSync("synchron");
       return this.last;
@@ -316,8 +359,31 @@ export class CloudStore implements DataStore {
     return { draft: res.data.draft, notes: res.data.notes ?? [], source: "ki" as const };
   }
 
+  async createShopItem(input: ShopItemDraftInput): Promise<ShopItem> {
+    const d = ShopItemDraftSchema.parse(input);
+    const r = unwrap<ShopItemRow>(await this.sb.from("shop_items").insert(d).select().single());
+    this.emit();
+    return { id: r.id, title: r.title, description: r.description, cost: r.cost, icon: r.icon, active: r.active, createdAt: r.created_at };
+  }
+
+  async updateShopItem(id: string, patch: Partial<ShopItemDraftInput>) {
+    const cur = this.last?.shopItems.find((i) => i.id === id);
+    if (!cur) throw new Error("Belohnung nicht gefunden");
+    const d = ShopItemDraftSchema.parse({ ...cur, ...patch });
+    unwrap(await this.sb.from("shop_items").update(d).eq("id", id));
+    this.emit();
+  }
+
+  async purchase(itemId: string): Promise<PurchaseResult> {
+    const r = unwrap<{ applied: boolean; reason?: string; coins_after?: number }>(
+      await this.sb.rpc("purchase_shop_item", { p_event_id: crypto.randomUUID(), p_item_id: itemId }),
+    );
+    this.emit();
+    return r.applied ? { applied: true, coinsAfter: r.coins_after ?? 0 } : { applied: false, reason: (r.reason ?? "not_found") as "not_found" };
+  }
+
   async exportData() {
-    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages"];
+    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages", "shop_items", "shop_purchases"];
     const out: Record<string, unknown> = { exportedAt: new Date().toISOString(), version: 1 };
     for (const t of tables) out[t] = unwrap(await this.sb.from(t).select("*"));
     return out;

@@ -5,12 +5,17 @@ import {
   consequenceDeltas,
   localToday,
   parseQuickAdd,
+  purchaseItem,
   simpleJudge,
   uncompleteInstance,
   validateVerdict,
   RULEBOOK_VERSION,
+  ShopItemDraftSchema,
   type Character,
   type Quest,
+  type ShopItem,
+  type ShopItemDraftInput,
+  type ShopPurchase,
 } from "@life-os/core";
 import {
   FeatureUnavailableError,
@@ -40,7 +45,7 @@ function emptySnapshot(): Snapshot {
     coins: 0,
     attributeXp: {} as Character["attributeXp"],
   };
-  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [] };
+  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [], shopItems: [], purchases: [] };
 }
 
 /**
@@ -264,6 +269,31 @@ export class LocalStore implements DataStore {
 
   async quickAdd(text: string) {
     return { ...parseQuickAdd(text, localToday(this.now())), source: "offline" as const };
+  }
+
+  async createShopItem(input: ShopItemDraftInput) {
+    const item: ShopItem = { ...ShopItemDraftSchema.parse(input), id: this.uuid(), createdAt: this.now().toISOString() };
+    this.commit({ ...this.snap, shopItems: [...this.snap.shopItems, item] });
+    return item;
+  }
+
+  async updateShopItem(id: string, patch: Partial<ShopItemDraftInput>) {
+    const cur = this.snap.shopItems.find((i) => i.id === id);
+    if (!cur) throw new Error("Belohnung nicht gefunden");
+    const next: ShopItem = { ...cur, ...ShopItemDraftSchema.parse({ ...cur, ...patch }) };
+    this.commit({ ...this.snap, shopItems: this.snap.shopItems.map((i) => (i.id === id ? next : i)) });
+  }
+
+  async purchase(itemId: string) {
+    const item = this.snap.shopItems.find((i) => i.id === itemId);
+    const eventId = this.uuid();
+    const now = this.now().toISOString();
+    const { state, result } = purchaseItem(this.snap, { eventId, item, now });
+    if (result.applied && item) {
+      const p: ShopPurchase = { id: this.uuid(), itemId: item.id, title: item.title, cost: item.cost, eventId, purchasedAt: now };
+      this.commit({ ...this.snap, ...state, purchases: [p, ...this.snap.purchases] });
+    }
+    return result;
   }
 
   async exportData() {

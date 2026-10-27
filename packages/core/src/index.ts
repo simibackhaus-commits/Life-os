@@ -7,3 +7,5 @@ export * from "./streaks.ts";
 export * from "./court.ts";
 export * from "./engine.ts";
 export * from "./quickadd.ts";
+export * from "./shop.ts";
+export * from "./achievements.ts";
