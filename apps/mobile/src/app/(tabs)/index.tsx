@@ -4,6 +4,7 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { todaysItems } from "@life-os/api";
 import { Bar, Button, Card, CharacterHeader, QuestRow } from "@/components/ui";
+import { SeasonCard } from "@/components/season";
 import { colors, s } from "@/lib/theme";
 import { useGame } from "@/state/GameProvider";
 
@@ -62,6 +63,8 @@ export default function Today() {
           )}
           {items.some((i) => i.status === "erledigt") ? <Text style={[s.small, { marginTop: 8 }]}>Lange drücken nimmt einen Abschluss zurück.</Text> : null}
         </Card>
+
+        <SeasonCard />
 
         {main ? (
           <Card title="Hauptquest">

@@ -77,7 +77,9 @@ Vorgabe des Nutzers (2026-10-27): vorerst nur Bausteine ohne laufende Kosten (ke
 | Fokus-Dungeons (25/50/90 min, XP/Coins nach Serverzeit) | FERTIG | `start/finish/abandon_focus_session()`, Startzeit vom Server, max. 1 laufende Sitzung; 3 DB-Tests + Store-Test; Desktop im Browser geprüft (+30 XP); iPhone: Benachrichtigung zum Ende |
 | Habit Garden | FERTIG | Pflanzenstufen aus Serien, Welken bei Abbruch; Desktop im Browser geprüft |
 | Avatar & wählbare Titel | FERTIG | Titel aus Level und Achievements; Spalte `title` vom Spieler änderbar (rein kosmetisch) |
-| Hauptquartier, Storysystem, Saison-Events | GEPLANT | kostenfrei umsetzbar |
+| Hauptquartier (10 Räume nach Attributen, Burg-Rang, Trophäenhalle) | FERTIG | Rein berechnet, keine Speicherung; Desktop + iPhone im Browser geprüft |
+| Storysystem (11 Kapitel, freigeschaltet nach Level) | FERTIG | Personalisiert mit Name und Klasse |
+| Saison-Events (12 Monats-Herausforderungen) + Jahresrückblick | FERTIG | Messwerte aus Quests, Trainings, Dungeons, Sparbuchungen; Dashboard- und Startbildschirm-Karte |
 | Externe Integrationen | GEPLANT | Google Calendar/Strava kostenlos, aber OAuth-Einrichtung durch den Nutzer nötig; Apple Health nur mit nativer App |
 
 Ursprünglicher Umfang:

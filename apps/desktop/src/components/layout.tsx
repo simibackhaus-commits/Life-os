@@ -4,6 +4,8 @@ import {
   Bell,
   Briefcase,
   CalendarDays,
+  CalendarHeart,
+  Castle,
   Dumbbell,
   Gavel,
   LayoutDashboard,
@@ -28,10 +30,11 @@ import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";
 import { Badge, Card, CardTitle, Input } from "./ui/primitives";
 
-export type Page = "dashboard" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "dungeons" | "garden" | "career" | "fitness" | "finance" | "stats" | "settings";
+export type Page = "dashboard" | "hq" | "events" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "dungeons" | "garden" | "career" | "fitness" | "finance" | "stats" | "settings";
 
 const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: number }> = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} /> },
+  { id: "hq", label: "Hauptquartier", icon: <Castle size={17} /> },
   { id: "quests", label: "Quests", icon: <ScrollText size={17} /> },
   { id: "calendar", label: "Kalender", icon: <CalendarDays size={17} /> },
   { id: "character", label: "Charakter", icon: <User size={17} /> },
@@ -40,6 +43,7 @@ const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: numb
   { id: "shop", label: "Shop", icon: <ShoppingBag size={17} /> },
   { id: "dungeons", label: "Dungeons", icon: <Swords size={17} /> },
   { id: "garden", label: "Garten", icon: <Sprout size={17} /> },
+  { id: "events", label: "Events", icon: <CalendarHeart size={17} /> },
   { id: "career", label: "Karriere", icon: <Briefcase size={17} /> },
   { id: "fitness", label: "Fitness", icon: <Dumbbell size={17} /> },
   { id: "finance", label: "Finanzen", icon: <PiggyBank size={17} /> },

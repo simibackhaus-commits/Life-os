@@ -12,6 +12,8 @@ import { CalendarPage } from "@/pages/Calendar";
 import { CareerPage } from "@/pages/Career";
 import { FinancePage } from "@/pages/Finance";
 import { DungeonsPage } from "@/pages/Dungeons";
+import { EventsPage } from "@/pages/Events";
+import { HeadquartersPage } from "@/pages/Headquarters";
 import { FitnessPage } from "@/pages/Fitness";
 import { GardenPage } from "@/pages/Garden";
 import { ShopPage } from "@/pages/Shop";
@@ -46,6 +48,8 @@ function Shell() {
         {page === "calendar" && <CalendarPage />}
         {page === "skills" && <SkilltreePage />}
         {page === "shop" && <ShopPage />}
+        {page === "hq" && <HeadquartersPage />}
+        {page === "events" && <EventsPage />}
         {page === "dungeons" && <DungeonsPage />}
         {page === "garden" && <GardenPage />}
         {page === "career" && <CareerPage />}

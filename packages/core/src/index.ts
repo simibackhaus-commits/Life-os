@@ -12,3 +12,4 @@ export * from "./achievements.ts";
 export * from "./skills.ts";
 export * from "./modules.ts";
 export * from "./world.ts";
+export * from "./realm.ts";

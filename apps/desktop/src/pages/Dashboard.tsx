@@ -1,6 +1,7 @@
 import { Activity, Swords, Target } from "lucide-react";
 import { QUEST_TYPE_LABELS, bossHp, isQuestLocked } from "@life-os/core";
 import { questTypeColors } from "@life-os/ui-tokens";
+import { SeasonCard } from "@/pages/Events";
 import { AttributeGrid, CharacterSummary, QuestItem, XpChart } from "@/components/game";
 import { Badge, Card, CardTitle, Progress } from "@/components/ui/primitives";
 import { todaysItems } from "@life-os/api";
@@ -98,6 +99,7 @@ export function Dashboard({ onQuickAdd }: { onQuickAdd: () => void }) {
         </Card>
       </div>
       <div className="space-y-4 xl:col-span-2">
+        <SeasonCard />
         <AttributeGrid character={snap.character} />
         <XpChart />
         <Card>

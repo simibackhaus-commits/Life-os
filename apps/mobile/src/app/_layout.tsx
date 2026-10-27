@@ -40,6 +40,8 @@ function Shell({ store }: { store: DataStore }) {
             ["skills", "Skilltree"],
             ["calendar", "Kalender"],
             ["stats", "Statistiken"],
+            ["hq", "Hauptquartier"],
+            ["events", "Saison-Events"],
             ["dungeons", "Fokus-Dungeons"],
             ["garden", "Habit Garden"],
             ["career", "Karriere"],

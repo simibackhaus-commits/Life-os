@@ -120,6 +120,8 @@ export default function Settings() {
           <View style={{ gap: 8 }}>
             <Button label="Kalender" icon="calendar" variant="outline" onPress={() => router.push("/calendar")} />
             <Button label="Skilltree" icon="git-network" variant="outline" onPress={() => router.push("/skills")} />
+            <Button label="Hauptquartier & Story" icon="home" variant="outline" onPress={() => router.push("/hq")} />
+            <Button label="Saison-Events & Jahresrückblick" icon="sparkles" variant="outline" onPress={() => router.push("/events")} />
             <Button label="Fokus-Dungeons" icon="flash" variant="outline" onPress={() => router.push("/dungeons")} />
             <Button label="Habit Garden" icon="leaf" variant="outline" onPress={() => router.push("/garden")} />
             <Button label="Belohnungsshop" icon="gift" variant="outline" onPress={() => router.push("/shop")} />
