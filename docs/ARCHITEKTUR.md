@@ -44,5 +44,9 @@ Expo Go unterstützt nur das neueste SDK → SDK 58 (React 19, RN 0.88). Styling
 - Gemeinsame Selektoren (heutige Quests, verpasste Pflichtquests, Streaks) liegen in `packages/api/src/selectors.ts`.
 - Erinnerungen sind lokale Benachrichtigungen (funktionieren in Expo Go). Remote-Push folgt mit einem EAS Development Build.
 
+## ADR-12 – Kostenlose iPhone-Nutzung als PWA
+Eine native Installation ohne laufenden PC erfordert ein Apple-Developer-Konto (99 €/Jahr). Als kostenlose Lösung wird dieselbe Expo-App per `expo export -p web` (SPA, `web.output: single`) als Progressive Web App gebaut und statisch gehostet (Netlify, `_redirects` für Unterseiten). `public/index.html` enthält Manifest, `apple-touch-icon`, `apple-mobile-web-app-capable` und `viewport-fit=cover`.
+Systemdialoge (`Alert` mit Buttons) funktionieren im Web nicht → eigenes `ActionSheet`-Modal. Funktionen ohne Web-Entsprechung (Face ID, Haptik, lokale Erinnerungen) sind dort deaktiviert. Ein späterer Wechsel zur nativen App (EAS) braucht keine Codeänderung.
+
 ## ADR-10 – Datenbanktests ohne Docker
 Docker ist auf dem Entwicklungsrechner nicht immer aktiv. → Migrationen werden in Vitest gegen PGlite (Postgres als WASM) mit minimalem `auth`-Stub ausgeführt: Regelparität, Idempotenz, RLS, Spaltenrechte, Gerichtsgrenzen, Accountlöschung. Ersetzt keinen Test gegen echtes Supabase (Realtime, Auth, PostgREST) – der steht in der Roadmap.

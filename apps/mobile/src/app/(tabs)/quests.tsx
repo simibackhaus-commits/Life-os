@@ -1,11 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ONCE_KEY, QUEST_TYPE_LABELS, describeRule, type Quest } from "@life-os/core";
 import { questStreak, rewardOf } from "@life-os/api";
-import { Badge, Button, Card } from "@/components/ui";
+import { ActionSheet, Badge, Button, Card, type SheetOption } from "@/components/ui";
 import { colors, questTypeColors, s } from "@/lib/theme";
 import { useGame } from "@/state/GameProvider";
 
@@ -16,14 +16,15 @@ export default function Quests() {
   const [filter, setFilter] = useState<Filter>("aktiv");
   const quests = snap.quests.filter((q) => q.status === filter).sort((a, b) => b.priority - a.priority);
 
-  function actions(q: Quest) {
-    const opts: Array<{ text: string; style?: "cancel" | "destructive"; onPress?: () => void }> = [];
-    if (q.status === "aktiv" && !q.recurrence) opts.push({ text: "Abschließen", onPress: () => void complete({ questId: q.id, occurrenceKey: ONCE_KEY, dueAt: q.dueAt }) });
-    if (q.status === "aktiv") opts.push({ text: "Pausieren", onPress: () => void run((s) => s.updateQuest(q.id, { status: "pausiert" })) });
-    if (q.status === "pausiert") opts.push({ text: "Fortsetzen", onPress: () => void run((s) => s.updateQuest(q.id, { status: "aktiv" })) });
-    opts.push({ text: "Archivieren", style: "destructive", onPress: () => void run((s) => s.updateQuest(q.id, { status: "archiviert" })) });
-    opts.push({ text: "Abbrechen", style: "cancel" });
-    Alert.alert(q.title, undefined, opts);
+  const [selected, setSelected] = useState<Quest | null>(null);
+
+  function actions(q: Quest): SheetOption[] {
+    const opts: SheetOption[] = [];
+    if (q.status === "aktiv" && !q.recurrence) opts.push({ label: "Abschließen", onPress: () => void complete({ questId: q.id, occurrenceKey: ONCE_KEY, dueAt: q.dueAt }) });
+    if (q.status === "aktiv") opts.push({ label: "Pausieren", onPress: () => void run((s) => s.updateQuest(q.id, { status: "pausiert" })) });
+    if (q.status === "pausiert") opts.push({ label: "Fortsetzen", onPress: () => void run((s) => s.updateQuest(q.id, { status: "aktiv" })) });
+    opts.push({ label: "Archivieren", destructive: true, onPress: () => void run((s) => s.updateQuest(q.id, { status: "archiviert" })) });
+    return opts;
   }
 
   return (
@@ -57,7 +58,7 @@ export default function Quests() {
             const r = rewardOf(q);
             const streak = questStreak(snap, q, today);
             return (
-              <Pressable key={q.id} onPress={() => actions(q)}>
+              <Pressable key={q.id} onPress={() => setSelected(q)}>
                 <Card>
                   <View style={[s.row, { justifyContent: "space-between" }]}>
                     <Text style={[s.text, { flex: 1, fontWeight: "600" }]} numberOfLines={2}>
@@ -82,6 +83,7 @@ export default function Quests() {
         )}
         <Button label="Neue Quest" icon="add" variant="outline" onPress={() => router.push("/quick-add")} />
       </ScrollView>
+      <ActionSheet title={selected?.title ?? null} options={selected ? actions(selected) : []} onClose={() => setSelected(null)} />
     </SafeAreaView>
   );
 }

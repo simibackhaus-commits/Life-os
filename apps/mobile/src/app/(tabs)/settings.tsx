@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Alert, Platform, ScrollView, Share, Switch, Text, View } from "react-native";
+import { Platform, ScrollView, Share, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Button, Card } from "@/components/ui";
+import { ActionSheet, Button, Card } from "@/components/ui";
 import { supabase } from "@/lib/backend";
 import { biometricAvailable, getPref, requestNotificationPermission, rescheduleReminders, setPref } from "@/lib/device";
 import { colors, s } from "@/lib/theme";
@@ -24,6 +24,7 @@ export default function Settings() {
   const [reminders, setReminders] = useState(false);
   const [bio, setBio] = useState(false);
   const [bioAvail, setBioAvail] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     void getPref("reminders").then(setReminders);
@@ -85,7 +86,17 @@ export default function Settings() {
             variant="outline"
             onPress={async () => {
               const data = await run((st) => st.exportData());
-              if (data) await Share.share({ title: "LIFE OS Export", message: JSON.stringify(data, null, 2) });
+              if (!data) return;
+              const json = JSON.stringify(data, null, 2);
+              if (Platform.OS === "web") {
+                // Im Browser als Datei herunterladen
+                const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `life-os-export-${today}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } else await Share.share({ title: "LIFE OS Export", message: json });
             }}
           />
           <View style={{ marginTop: 10 }}>
@@ -93,15 +104,16 @@ export default function Settings() {
               label={store.mode === "cloud" ? "Account löschen" : "Spielstand löschen"}
               icon="trash"
               variant="danger"
-              onPress={() =>
-                Alert.alert("Wirklich löschen?", "Alle Daten werden unwiderruflich gelöscht. Vorher exportieren!", [
-                  { text: "Abbrechen", style: "cancel" },
-                  { text: "Endgültig löschen", style: "destructive", onPress: () => void run((st) => st.deleteAllData()) },
-                ])
-              }
+              onPress={() => setConfirmDelete(true)}
             />
           </View>
         </Card>
+        <ActionSheet
+          title={confirmDelete ? "Wirklich löschen?" : null}
+          message="Alle Daten werden unwiderruflich gelöscht. Vorher exportieren!"
+          options={[{ label: "Endgültig löschen", destructive: true, onPress: () => void run((st) => st.deleteAllData()) }]}
+          onClose={() => setConfirmDelete(false)}
+        />
 
         <Card title="Demnächst (Phase 3)">
           <Text style={s.muted}>Kalender, Shop, Skilltree, Statistiken, Business-, Sport- und Finanzmodule.</Text>

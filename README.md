@@ -146,6 +146,16 @@ pnpm mobile
    Fragt die Windows-Firewall nach Node.js: „Zugriff zulassen“ (privates Netzwerk).
    Klappt die Verbindung nicht (z. B. Gäste-WLAN): `pnpm mobile:tunnel`.
 
+## 6b. Web-App für den Home-Bildschirm (kostenlos, ohne PC)
+
+```powershell
+pnpm web:build
+```
+
+Ergebnis: `apps/mobile/dist`. Diesen Ordner auf <https://app.netlify.com/drop> ziehen (kostenloses Netlify-Konto). Bei Updates: neu bauen und im Netlify-Projekt unter **Deploys** den Ordner erneut hineinziehen.
+Auf dem iPhone: Adresse in **Safari** öffnen → Teilen → **Zum Home-Bildschirm**.
+Einschränkungen gegenüber der nativen App: kein Face ID, keine Haptik, keine Erinnerungen.
+
 ## 7. iOS-Build über EAS (später)
 
 Benötigt ein Apple-Developer-Konto (99 €/Jahr). Dann im Ordner `apps/mobile`: `eas login`, `eas build:configure`, `eas build -p ios`. Für echte Remote-Push-Benachrichtigungen ist ein solcher Build nötig.

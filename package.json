@@ -13,7 +13,8 @@
     "functions:deploy": "node scripts/sync-shared.mjs && supabase functions deploy game-master quick-add court --use-api",
     "db:push": "supabase db push",
     "mobile": "pnpm --filter @life-os/mobile start",
-    "mobile:tunnel": "pnpm --filter @life-os/mobile exec expo start --tunnel"
+    "mobile:tunnel": "pnpm --filter @life-os/mobile exec expo start --tunnel",
+    "web:build": "pnpm --filter @life-os/mobile exec expo export -p web --clear"
   },
   "engines": {
     "node": ">=20"

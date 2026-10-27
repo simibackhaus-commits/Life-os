@@ -211,6 +211,40 @@ export function QuestRow({ item, onCourt }: { item: OccurrenceItem; onCourt?: ()
   );
 }
 
+export interface SheetOption {
+  label: string;
+  destructive?: boolean;
+  onPress: () => void;
+}
+
+/** Auswahlmenü von unten – ersetzt Alert mit Buttons, das im Web (Home-Bildschirm-App) nicht funktioniert. */
+export function ActionSheet({ title, message, options, onClose }: { title: string | null; message?: string; options: SheetOption[]; onClose: () => void }) {
+  return (
+    <Modal visible={title !== null} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end", padding: 12 }}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: colors.surface, borderRadius: 16, borderColor: colors.border, borderWidth: 1, padding: 14, gap: 8, marginBottom: 24 }}>
+          <Text style={[s.text, { fontWeight: "700", textAlign: "center" }]} numberOfLines={2}>
+            {title}
+          </Text>
+          {message ? <Text style={[s.muted, { textAlign: "center" }]}>{message}</Text> : null}
+          {options.map((o) => (
+            <Button
+              key={o.label}
+              label={o.label}
+              variant={o.destructive ? "danger" : "outline"}
+              onPress={() => {
+                onClose();
+                o.onPress();
+              }}
+            />
+          ))}
+          <Button label="Abbrechen" variant="outline" onPress={onClose} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export function Toast() {
   const { toast } = useGame();
   if (!toast) return null;

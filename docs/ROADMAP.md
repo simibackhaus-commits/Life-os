@@ -45,6 +45,7 @@ Letzte Aktualisierung: 2026-10-27 (Sitzung 1)
 | Lokale Erinnerungen (expo-notifications) | IN ARBEIT | Nur auf dem Gerät testbar |
 | Offline-Warteschlange + Nachsenden bei Netz (NetInfo) | IN ARBEIT | Logik getestet (Outbox, HydratedStorage), Gerät ausstehend |
 | Sync PC ↔ iPhone mit demselben Account | IN ARBEIT | Nutzer-Test ausstehend |
+| Web-App für den Home-Bildschirm (PWA, ohne PC nutzbar) | IN ARBEIT | `pnpm web:build` → `apps/mobile/dist`. Lokal geprüft: Login, Unterseiten, Manifest, Icons. Hosting bei Netlify durch Nutzer ausstehend. Ohne Face ID, Haptik, Erinnerungen |
 | Remote-Push (Server → iPhone) | GEPLANT | Benötigt Development Build (EAS) + Apple-Developer-Konto; in Expo Go nicht möglich |
 | iOS-Build über EAS | GEPLANT | Benötigt Apple-Developer-Konto (99 €/Jahr) |
 
