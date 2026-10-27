@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Archive, Check, Pause, Pencil, Play, Plus } from "lucide-react";
+import { Archive, Check, LayoutTemplate, Pause, Pencil, Play, Plus } from "lucide-react";
 import { ATTRIBUTE_LABELS, ONCE_KEY, QUEST_TYPES, QUEST_TYPE_LABELS, bossHp, describeRule, isQuestLocked, type Quest, type QuestType } from "@life-os/core";
 import { attributeColors, questTypeColors } from "@life-os/ui-tokens";
 import { QuestEditor } from "@/components/QuestEditor";
+import { TemplatePicker } from "@/components/TemplatePicker";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Badge, Card, Progress } from "@/components/ui/primitives";
@@ -17,6 +18,7 @@ export function QuestsPage() {
   const [filter, setFilter] = useState<Filter>("aktiv");
   const [type, setType] = useState<QuestType | "alle">("alle");
   const [editing, setEditing] = useState<Quest | "new" | null>(null);
+  const [templates, setTemplates] = useState(false);
 
   const quests = snap.quests
     .filter((q) => q.status === filter && (type === "alle" || q.type === type))
@@ -37,10 +39,16 @@ export function QuestsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="heading text-2xl">Questbuch</h1>
-        <Button variant="gold" onClick={() => setEditing("new")}>
-          <Plus size={16} /> Neue Quest
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setTemplates(true)}>
+            <LayoutTemplate size={16} /> Vorlagen
+          </Button>
+          <Button variant="gold" onClick={() => setEditing("new")}>
+            <Plus size={16} /> Neue Quest
+          </Button>
+        </div>
       </div>
+      <TemplatePicker open={templates} onOpenChange={setTemplates} />
       <div className="flex flex-wrap gap-2">
         {(["aktiv", "pausiert", "erledigt"] as Filter[]).map((f) => (
           <Button key={f} size="sm" variant={filter === f ? "violet" : "outline"} onClick={() => setFilter(f)}>

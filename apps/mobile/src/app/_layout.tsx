@@ -36,6 +36,7 @@ function Shell({ store }: { store: DataStore }) {
         <Stack.Screen name="(tabs)" />
         {(
           [
+            ["templates", "Vorlagen"],
             ["shop", "Belohnungsshop"],
             ["skills", "Skilltree"],
             ["calendar", "Kalender"],

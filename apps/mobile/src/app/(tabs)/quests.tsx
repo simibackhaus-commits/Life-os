@@ -110,6 +110,7 @@ export default function Quests() {
           })
         )}
         <Button label="Neue Quest" icon="add" variant="outline" onPress={() => router.push("/quick-add")} />
+        <Button label="Vorlagen: Alltag & Training" icon="albums" variant="outline" onPress={() => router.push("/templates")} />
       </ScrollView>
       <ActionSheet title={selected?.title ?? null} options={selected ? actions(selected) : []} onClose={() => setSelected(null)} />
     </SafeAreaView>
