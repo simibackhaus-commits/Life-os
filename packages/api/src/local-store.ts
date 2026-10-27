@@ -6,6 +6,7 @@ import {
   localToday,
   parseQuickAdd,
   purchaseItem,
+  unlockSkill,
   simpleJudge,
   uncompleteInstance,
   validateVerdict,
@@ -45,7 +46,7 @@ function emptySnapshot(): Snapshot {
     coins: 0,
     attributeXp: {} as Character["attributeXp"],
   };
-  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [], shopItems: [], purchases: [] };
+  return { character, quests: [], instances: [], events: [], cases: [], courtMessages: [], shopItems: [], purchases: [], skills: [] };
 }
 
 /**
@@ -293,6 +294,12 @@ export class LocalStore implements DataStore {
       const p: ShopPurchase = { id: this.uuid(), itemId: item.id, title: item.title, cost: item.cost, eventId, purchasedAt: now };
       this.commit({ ...this.snap, ...state, purchases: [p, ...this.snap.purchases] });
     }
+    return result;
+  }
+
+  async unlockSkill(skillId: string) {
+    const { state, result } = unlockSkill(this.snap, skillId);
+    if (result.ok) this.commit({ ...this.snap, skills: state.skills ?? [] });
     return result;
   }
 

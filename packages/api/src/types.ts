@@ -3,6 +3,8 @@ import type {
   Consequence,
   Excuse,
   GameState,
+  LifetimeStats,
+  UnlockCheck,
   Plea,
   ProtectedReason,
   PurchaseResult,
@@ -50,6 +52,9 @@ export interface Snapshot extends GameState {
   courtMessages: CourtMessage[];
   shopItems: ShopItem[];
   purchases: ShopPurchase[];
+  skills: string[];
+  /** Gesamtzähler vom Server (nur Cloud). */
+  lifetime?: LifetimeStats;
 }
 
 export type QuestPatch = Partial<QuestDraftInput> & {
@@ -107,6 +112,7 @@ export interface DataStore {
   updateShopItem(id: string, patch: Partial<ShopItemDraftInput>): Promise<void>;
   /** Kauft eine Belohnung. Coins werden serverseitig geprüft und abgezogen. */
   purchase(itemId: string): Promise<PurchaseResult>;
+  unlockSkill(skillId: string): Promise<UnlockCheck>;
 
   exportData(): Promise<unknown>;
   deleteAllData(): Promise<void>;

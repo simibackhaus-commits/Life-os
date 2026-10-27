@@ -26,14 +26,14 @@ import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";
 import { Badge, Card, CardTitle, Input } from "./ui/primitives";
 
-export type Page = "dashboard" | "quests" | "character" | "court" | "shop" | "stats" | "settings";
+export type Page = "dashboard" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "stats" | "settings";
 
 const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: number }> = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} /> },
   { id: "quests", label: "Quests", icon: <ScrollText size={17} /> },
-  { id: null, label: "Kalender", icon: <CalendarDays size={17} />, phase: 3 },
+  { id: "calendar", label: "Kalender", icon: <CalendarDays size={17} /> },
   { id: "character", label: "Charakter", icon: <User size={17} /> },
-  { id: null, label: "Skilltree", icon: <Network size={17} />, phase: 3 },
+  { id: "skills", label: "Skilltree", icon: <Network size={17} /> },
   { id: "court", label: "Gericht", icon: <Gavel size={17} /> },
   { id: "shop", label: "Shop", icon: <ShoppingBag size={17} /> },
   { id: null, label: "Karriere", icon: <Briefcase size={17} />, phase: 3 },

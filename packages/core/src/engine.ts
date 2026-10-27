@@ -4,6 +4,7 @@ import { ONCE_KEY } from "./recurrence.ts";
 import { computeReward, type Reward } from "./rewards.ts";
 import type { Attribute, Character, GameEvent, Quest, QuestInstance } from "./schemas.ts";
 import { checkPurchase, type PurchaseResult, type ShopItem } from "./shop.ts";
+import { canUnlock, type UnlockCheck } from "./skills.ts";
 
 /**
  * Reine Spiel-Engine für den lokalen/Offline-Modus.
@@ -14,6 +15,15 @@ export interface GameState {
   quests: Quest[];
   instances: QuestInstance[];
   events: GameEvent[];
+  /** Freigeschaltete Skills (IDs wie "ausdauer_1"). */
+  skills?: string[];
+}
+
+/** Questkette: gesperrt, solange die Voraussetzung existiert und nicht erledigt ist. */
+export function isQuestLocked(quests: Quest[], q: Pick<Quest, "requiresQuestId">): boolean {
+  if (!q.requiresQuestId) return false;
+  const req = quests.find((x) => x.id === q.requiresQuestId);
+  return !!req && req.status !== "erledigt";
 }
 
 export interface CompletionInput {
@@ -27,7 +37,7 @@ export interface CompletionInput {
 
 export type CompletionResult =
   | { applied: true; reward: Reward; levelBefore: number; levelAfter: number }
-  | { applied: false; reason: "duplicate_event" | "already_completed" | "quest_not_found" | "quest_inactive" };
+  | { applied: false; reason: "duplicate_event" | "already_completed" | "quest_not_found" | "quest_inactive" | "quest_locked" };
 
 function addAttributeXp(
   base: Character["attributeXp"],
@@ -54,11 +64,12 @@ export function completeInstance(state: GameState, input: CompletionInput): { st
   const quest = state.quests.find((q) => q.id === input.questId);
   if (!quest) return { state, result: { applied: false, reason: "quest_not_found" } };
   if (quest.status !== "aktiv") return { state, result: { applied: false, reason: "quest_inactive" } };
+  if (isQuestLocked(state.quests, quest)) return { state, result: { applied: false, reason: "quest_locked" } };
 
   const existing = state.instances.find((i) => i.questId === quest.id && i.occurrenceKey === input.occurrenceKey);
   if (existing?.status === "erledigt") return { state, result: { applied: false, reason: "already_completed" } };
 
-  const reward = computeReward(quest);
+  const reward = computeReward(quest, new Set(state.skills ?? []));
   const levelBefore = levelFromXp(state.character.totalXp).level;
   const character = applyDeltas(state.character, reward.xp, reward.coins, reward.attributeXp);
   const levelAfter = levelFromXp(character.totalXp).level;
@@ -181,4 +192,21 @@ export function applyVerdictEvent(
     applied: true,
     state: { ...state, character: applyDeltas(state.character, event.xpDelta, event.coinDelta, {}), events: [...state.events, event] },
   };
+}
+
+/** Schaltet einen Skill frei (lokaler Modus). Server: public.unlock_skill(). */
+export function unlockSkill(state: GameState, skillId: string): { state: GameState; result: UnlockCheck } {
+  const unlocked = new Set(state.skills ?? []);
+  const check = canUnlock(skillId, state.character.attributeXp, unlocked);
+  if (!check.ok) return { state, result: check };
+  return { state: { ...state, skills: [...unlocked, skillId] }, result: check };
+}
+
+/** Bosskampf: Trefferpunkte = Teilaufgaben. Jede erledigte Teilaufgabe ist ein Treffer. */
+export function bossHp(q: Pick<Quest, "type" | "subtasks" | "status">): { max: number; current: number } | null {
+  if (q.type !== "boss") return null;
+  const max = Math.max(1, q.subtasks.length);
+  if (q.status === "erledigt") return { max, current: 0 };
+  const hits = q.subtasks.filter((s) => s.done).length;
+  return { max, current: q.subtasks.length ? max - hits : max };
 }

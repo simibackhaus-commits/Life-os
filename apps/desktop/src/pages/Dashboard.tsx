@@ -1,5 +1,5 @@
 import { Activity, Swords, Target } from "lucide-react";
-import { QUEST_TYPE_LABELS } from "@life-os/core";
+import { QUEST_TYPE_LABELS, bossHp, isQuestLocked } from "@life-os/core";
 import { questTypeColors } from "@life-os/ui-tokens";
 import { AttributeGrid, CharacterSummary, QuestItem, XpChart } from "@/components/game";
 import { Badge, Card, CardTitle, Progress } from "@/components/ui/primitives";
@@ -20,7 +20,7 @@ export function Dashboard({ onQuickAdd }: { onQuickAdd: () => void }) {
   const { snap, today } = useGame();
   const items = todaysItems(snap, today);
   const done = items.filter((i) => i.status === "erledigt").length;
-  const mainQuests = snap.quests.filter((q) => q.status === "aktiv" && ["main", "epic", "legendary", "boss"].includes(q.type));
+  const mainQuests = snap.quests.filter((q) => q.status === "aktiv" && ["main", "epic", "legendary", "boss"].includes(q.type) && !isQuestLocked(snap.quests, q));
   const events = [...snap.events].reverse().slice(0, 8);
 
   return (
@@ -63,6 +63,7 @@ export function Dashboard({ onQuickAdd }: { onQuickAdd: () => void }) {
               {mainQuests.map((q) => {
                 const subDone = q.subtasks.filter((s) => s.done).length;
                 const progress = q.subtasks.length ? subDone / q.subtasks.length : q.progress / 100;
+                const hp = bossHp(q);
                 return (
                   <div key={q.id}>
                     <div className="mb-1 flex items-center justify-between gap-2 text-sm">
@@ -72,11 +73,22 @@ export function Dashboard({ onQuickAdd }: { onQuickAdd: () => void }) {
                         {q.dueAt && <span className="text-[11px] text-muted">bis {formatDateTime(q.dueAt)}</span>}
                       </span>
                     </div>
-                    <Progress value={progress} className="h-1.5" barClassName="from-violet-deep to-violet" />
-                    {q.subtasks.length > 0 && (
-                      <div className="mt-0.5 text-[11px] text-muted">
-                        {subDone}/{q.subtasks.length} Teilaufgaben
-                      </div>
+                    {hp ? (
+                      <>
+                        <Progress value={hp.current / hp.max} className="h-2" barClassName="from-danger to-danger" />
+                        <div className="mt-0.5 text-[11px] text-danger">
+                          🐉 {hp.current}/{hp.max} Trefferpunkte – jede erledigte Teilaufgabe ist ein Treffer
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Progress value={progress} className="h-1.5" barClassName="from-violet-deep to-violet" />
+                        {q.subtasks.length > 0 && (
+                          <div className="mt-0.5 text-[11px] text-muted">
+                            {subDone}/{q.subtasks.length} Teilaufgaben
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );

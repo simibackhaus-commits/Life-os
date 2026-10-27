@@ -10,6 +10,15 @@ import type { GameState } from "./engine.ts";
 export interface AchievementInput extends GameState {
   cases?: Array<{ verdict: string | null; plea: string | null }>;
   today: string;
+  /** Serverseitige Gesamtzähler (Cloud lädt nur ein Zeitfenster). Höhere Werte gewinnen. */
+  lifetime?: LifetimeStats;
+}
+
+export interface LifetimeStats {
+  completions: number;
+  completedTypes: string[];
+  earlyBird: number;
+  purchases: number;
 }
 
 export interface AchievementDef {
@@ -55,13 +64,16 @@ function derive(input: AchievementInput): Derived {
   const attributeLevels = Object.fromEntries(
     ATTRIBUTES.map((a) => [a, levelFromXp(input.character.attributeXp?.[a] ?? 0, ATTRIBUTE_CURVE).level]),
   ) as Record<Attribute, number>;
+  const lt = input.lifetime;
+  const completedTypes = new Set<string>(done.map((i) => typeOf.get(i.questId)).filter((t): t is NonNullable<typeof t> => !!t));
+  for (const t of lt?.completedTypes ?? []) completedTypes.add(t);
   return {
-    completions: done.length,
+    completions: Math.max(done.length, lt?.completions ?? 0),
     bestStreak,
     level: levelFromXp(input.character.totalXp).level,
-    completedTypes: new Set(done.map((i) => typeOf.get(i.questId)).filter((t): t is NonNullable<typeof t> => !!t)),
-    earlyBird: done.filter((i) => i.completedAt && new Date(i.completedAt).getHours() < 7).length,
-    purchases: input.events.filter((e) => e.kind === "shop_purchase").length,
+    completedTypes,
+    earlyBird: Math.max(done.filter((i) => i.completedAt && new Date(i.completedAt).getHours() < 7).length, lt?.earlyBird ?? 0),
+    purchases: Math.max(input.events.filter((e) => e.kind === "shop_purchase").length, lt?.purchases ?? 0),
     attributeLevels,
   };
 }

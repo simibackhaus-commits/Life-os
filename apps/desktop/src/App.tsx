@@ -8,7 +8,9 @@ import { CourtPage } from "@/pages/Court";
 import { Dashboard } from "@/pages/Dashboard";
 import { AuthPage, CharacterPage, SettingsPage } from "@/pages/Other";
 import { QuestsPage } from "@/pages/Quests";
+import { CalendarPage } from "@/pages/Calendar";
 import { ShopPage } from "@/pages/Shop";
+import { SkilltreePage } from "@/pages/Skilltree";
 import { StatsPage } from "@/pages/Stats";
 import { GameProvider } from "@/state/GameProvider";
 
@@ -36,6 +38,8 @@ function Shell() {
         {page === "quests" && <QuestsPage />}
         {page === "character" && <CharacterPage />}
         {page === "court" && <CourtPage />}
+        {page === "calendar" && <CalendarPage />}
+        {page === "skills" && <SkilltreePage />}
         {page === "shop" && <ShopPage />}
         {page === "stats" && <StatsPage />}
         {page === "settings" && <SettingsPage />}

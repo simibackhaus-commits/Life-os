@@ -16,6 +16,7 @@ export interface QuestRow {
   estimated_minutes: number | null;
   subtasks: Quest["subtasks"];
   goal_id: string | null;
+  requires_quest_id: string | null;
   proof_required: boolean;
   mandatory: boolean;
   consequences: string;
@@ -72,6 +73,7 @@ export const questFromRow = (r: QuestRow): Quest => ({
   estimatedMinutes: r.estimated_minutes,
   subtasks: r.subtasks,
   goalId: r.goal_id,
+  requiresQuestId: r.requires_quest_id ?? null,
   proofRequired: r.proof_required,
   mandatory: r.mandatory,
   consequences: r.consequences,
@@ -95,6 +97,7 @@ export const questDraftToRow = (d: QuestDraft) => ({
   estimated_minutes: d.estimatedMinutes,
   subtasks: d.subtasks,
   goal_id: d.goalId,
+  requires_quest_id: d.requiresQuestId,
   proof_required: d.proofRequired,
   mandatory: d.mandatory,
   consequences: d.consequences,

@@ -117,11 +117,16 @@ export default function Settings() {
         />
 
         <Card title="Spiel">
-          <Button label="Belohnungsshop" icon="gift" variant="outline" onPress={() => router.push("/shop")} />
+          <View style={{ gap: 8 }}>
+            <Button label="Kalender" icon="calendar" variant="outline" onPress={() => router.push("/calendar")} />
+            <Button label="Skilltree" icon="git-network" variant="outline" onPress={() => router.push("/skills")} />
+            <Button label="Belohnungsshop" icon="gift" variant="outline" onPress={() => router.push("/shop")} />
+            <Button label="Statistiken" icon="stats-chart" variant="outline" onPress={() => router.push("/stats")} />
+          </View>
         </Card>
 
         <Card title="Demnächst (Phase 3)">
-          <Text style={s.muted}>Kalender, Skilltree, Bosskämpfe, Questketten, Business-, Sport- und Finanzmodule.</Text>
+          <Text style={s.muted}>Business-, Sport- und Finanzmodule.</Text>
         </Card>
       </ScrollView>
     </SafeAreaView>

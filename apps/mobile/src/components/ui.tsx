@@ -158,7 +158,7 @@ export function QuestRow({ item, onCourt }: { item: OccurrenceItem; onCourt?: ()
   const glow = useRef(new Animated.Value(0)).current;
   const done = item.status === "erledigt";
   const excused = item.status === "entschuldigt";
-  const reward = rewardOf(item.quest);
+  const reward = rewardOf(item.quest, snap.skills);
   const streak = questStreak(snap, item.quest, today);
 
   async function onPress() {

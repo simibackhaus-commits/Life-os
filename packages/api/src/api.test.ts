@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LocalStore, type KeyValueStorage } from "./local-store.ts";
 import { Outbox, type OutboxItem } from "./outbox.ts";
 import { HydratedStorage, STORAGE_KEYS } from "./storage.ts";
-import { achievementsFor, totals } from "./selectors.ts";
+import { achievementsFor, calendarDay, calendarMonth, rewardOf, todaysItems, totals } from "./selectors.ts";
 
 class MemoryStorage implements KeyValueStorage {
   m = new Map<string, string>();
@@ -75,6 +75,41 @@ describe("LocalStore", () => {
     expect(achievementsFor(s, "2026-10-27").find((a) => a.def.id === "belohnt")?.unlocked).toBe(true);
     await store.updateShopItem(item.id, { active: false });
     expect(await store.purchase(item.id)).toEqual({ applied: false, reason: "inactive" });
+  });
+
+  it("Skills: Freischalten nur mit Level, Bonus in Belohnung", async () => {
+    const store = new LocalStore(new MemoryStorage());
+    expect(await store.unlockSkill("ausdauer_1")).toEqual({ ok: false, reason: "level" });
+    const q = await store.createQuest({ title: "Marathon", type: "legendary", difficulty: "episch", attributes: ["ausdauer"] });
+    await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
+    expect(await store.unlockSkill("ausdauer_1")).toEqual({ ok: true });
+    const s = await store.load();
+    expect(s.skills).toEqual(["ausdauer_1"]);
+    const run = await store.createQuest({ title: "Lauf", difficulty: "schwer", attributes: ["ausdauer"] });
+    expect(rewardOf(run, s.skills).xp).toBe(53); // 50 + 5 %
+  });
+
+  it("Questketten: Folgequest erscheint erst nach Abschluss; Kalender zeigt Termine", async () => {
+    const store = new LocalStore(new MemoryStorage());
+    const a = await store.createQuest({ title: "Teil 1", type: "daily" });
+    const b = await store.createQuest({ title: "Teil 2", type: "daily", requiresQuestId: a.id });
+    let s = await store.load();
+    expect(todaysItems(s, "2026-10-27").map((i) => i.quest.title)).toEqual(["Teil 1"]);
+    await store.completeOccurrence({ questId: a.id, occurrenceKey: "once", dueAt: null });
+    s = await store.load();
+    expect(todaysItems(s, "2026-10-27").some((i) => i.quest.id === b.id)).toBe(true);
+
+    await store.createQuest({ title: "Zahnarzt", dueAt: new Date("2026-11-03T09:30:00").toISOString() });
+    await store.createQuest({ title: "Joggen", recurrence: { freq: "weekly", interval: 1, byWeekday: [2], startDate: "2026-10-01" } });
+    s = await store.load();
+    // Termine mit Uhrzeit zuerst, ganztägige danach (wie in der Tagesansicht)
+    expect(calendarDay(s, "2026-11-03").map((i) => [i.quest.title, i.time])).toEqual([
+      ["Zahnarzt", "09:30"],
+      ["Joggen", null],
+    ]);
+    const month = calendarMonth(s, 2026, 11);
+    expect(month.length % 7).toBe(0);
+    expect(month.find((c) => c.date === "2026-11-03")?.open).toBe(2);
   });
 
   it("Quick-Add nutzt offline den Parser", async () => {

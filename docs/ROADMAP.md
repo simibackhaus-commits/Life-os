@@ -55,16 +55,15 @@ Edge Functions sind deployt (`--use-api`, ohne Docker). Ohne `ANTHROPIC_API_KEY`
 
 | Baustein | Status | Nachweis / Hinweis |
 |---|---|---|
-| Belohnungsshop (eigene Belohnungen, Kauf mit Coins) | FERTIG (lokal) / IN ARBEIT (Cloud) | Kauf serverseitig über `purchase_shop_item()` (idempotent, Guthabenprüfung, keine Fremdkäufe) – 2 DB-Tests, Engine- und Store-Tests; Desktop im Browser geprüft (100 → 70 Coins). Migration `20261028000000_shop.sql` muss auf Supabase eingespielt sein |
-| Achievements (16, Bronze bis Legendär) | FERTIG | Rein aus dem Spielstand berechnet, keine Tabelle; Desktop-Charakterseite + iPhone-Charakter |
-| Statistiken (Kennzahlen, XP 30 Tage, Wochentage, Attribut-Radar, Erfüllungsquote) | FERTIG (Desktop) | iPhone: geplant |
-| Skilltree | GEPLANT | Abschnitt 2 |
-| Kalender | GEPLANT | Abschnitt 2 |
-| Bosskämpfe (Trefferpunkte, Phasen) und Questketten | GEPLANT | Abschnitt 2 |
-| Erweiterte Gerichtsverhandlungen | GEPLANT | Abschnitt 2 (braucht teils KI) |
+| Belohnungsshop (eigene Belohnungen, Kauf mit Coins) | FERTIG | Kauf serverseitig über `purchase_shop_item()` (idempotent, Guthabenprüfung, keine Fremdkäufe); Desktop + iPhone; Migration auf Supabase eingespielt (REST-Prüfung) |
+| Achievements (16, Bronze bis Legendär) | FERTIG | Aus dem Spielstand + serverseitigen Langzeitzählern (`lifetime_stats()`) |
+| Statistiken | FERTIG | Desktop (Recharts) und iPhone (einfache Balken) |
+| Skilltree (30 Fähigkeiten, XP-/Coin-Boni) | FERTIG | Boni rechnet der Server in `complete_quest_instance()`; Parität TS↔SQL getestet; Freischalten nur über `unlock_skill()`; Desktop im Browser geprüft |
+| Kalender | FERTIG | Desktop: Monatsraster + Tagesliste; iPhone: Wochenleiste + Agenda |
+| Bosskämpfe (Trefferpunkte = Teilaufgaben) | FERTIG | Letzter Treffer schließt den Boss ab; Desktop im Browser geprüft (2 Treffer → +200 XP) |
+| Questketten (Voraussetzung) | FERTIG | Gesperrte Quests sind ausgeblendet; Server lehnt Abschluss ab (`quest_locked`) |
+| Erweiterte Gerichtsverhandlungen | GEPLANT | Braucht größtenteils die KI (zurückgestellt) |
 | Business-, Sport-, Finanzmodule | GEPLANT | Abschnitt 3 |
-
-Bekannte Grenze: Der Cloud-Modus lädt die letzten 200 Ereignisse und 120 Tage Instanzen – Langzeit-Achievements (z. B. 100 Quests) zählen nur dieses Fenster. Lösung in Abschnitt 2: serverseitige Zähler.
 
 ## Phase 4 – Lebendige Spielwelt (GEPLANT)
 Hauptquartier, Avatar, Storysystem, Saison-Events, Habit Garden, Fokus-Dungeons, Animationen, externe Integrationen (Google/Outlook/Apple Calendar, Gmail, Strava, Garmin, Apple Health, WhatsApp Business API). Keine Integration gilt als fertig, bevor sie live getestet wurde.

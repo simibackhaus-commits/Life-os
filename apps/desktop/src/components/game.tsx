@@ -75,7 +75,7 @@ export function QuestItem({ item, onCourt }: { item: OccurrenceItem; onCourt?: (
   const [burst, setBurst] = useState(false);
   const done = item.status === "erledigt";
   const excused = item.status === "entschuldigt";
-  const reward = rewardOf(item.quest);
+  const reward = rewardOf(item.quest, snap.skills);
   const streak = questStreak(snap, item.quest, today);
 
   async function toggle() {

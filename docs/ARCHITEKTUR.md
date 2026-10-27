@@ -48,5 +48,10 @@ Expo Go unterstützt nur das neueste SDK → SDK 58 (React 19, RN 0.88). Styling
 Eine native Installation ohne laufenden PC erfordert ein Apple-Developer-Konto (99 €/Jahr). Als kostenlose Lösung wird dieselbe Expo-App per `expo export -p web` (SPA, `web.output: single`) als Progressive Web App gebaut und statisch gehostet (Netlify, `_redirects` für Unterseiten). `public/index.html` enthält Manifest, `apple-touch-icon`, `apple-mobile-web-app-capable` und `viewport-fit=cover`.
 Systemdialoge (`Alert` mit Buttons) funktionieren im Web nicht → eigenes `ActionSheet`-Modal. Funktionen ohne Web-Entsprechung (Face ID, Haptik, lokale Erinnerungen) sind dort deaktiviert. Ein späterer Wechsel zur nativen App (EAS) braucht keine Codeänderung.
 
+## ADR-13 – Skilltree mit echter Wirkung, Achievements ohne Tabelle
+Skills sollen spürbar sein, aber nicht manipulierbar: Freischalten nur über `unlock_skill()` (prüft Reihenfolge, Attribut-Level, Punkte), die Boni (+5/+10 % XP, +10 % Coins, gedeckelt 25/20 %) rechnet `complete_quest_instance()` serverseitig. Die TS-Formel in `rewards.ts` ist für Vorschau und lokalen Modus und per Paritätstest an SQL gebunden (Rundung: `numeric`, „half away from zero“ wie `Math.round` bei positiven Werten).
+Achievements haben keine Spielwirkung und werden deshalb nur berechnet; damit Langzeitziele trotz geladenem Zeitfenster stimmen, liefert `lifetime_stats()` (security invoker → RLS) Gesamtzähler.
+Bosskampf = Quest vom Typ `boss`, Trefferpunkte = Teilaufgaben, keine eigene Tabelle. Questketten über `quests.requires_quest_id`; der Server lehnt Abschlüsse gesperrter Quests ab.
+
 ## ADR-10 – Datenbanktests ohne Docker
 Docker ist auf dem Entwicklungsrechner nicht immer aktiv. → Migrationen werden in Vitest gegen PGlite (Postgres als WASM) mit minimalem `auth`-Stub ausgeführt: Regelparität, Idempotenz, RLS, Spaltenrechte, Gerichtsgrenzen, Accountlöschung. Ersetzt keinen Test gegen echtes Supabase (Realtime, Auth, PostgREST) – der steht in der Roadmap.

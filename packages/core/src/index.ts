@@ -9,3 +9,4 @@ export * from "./engine.ts";
 export * from "./quickadd.ts";
 export * from "./shop.ts";
 export * from "./achievements.ts";
+export * from "./skills.ts";

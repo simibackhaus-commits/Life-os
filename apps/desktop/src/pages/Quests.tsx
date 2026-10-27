@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Archive, Check, Pause, Pencil, Play, Plus } from "lucide-react";
-import { ATTRIBUTE_LABELS, ONCE_KEY, QUEST_TYPES, QUEST_TYPE_LABELS, describeRule, type Quest, type QuestType } from "@life-os/core";
+import { ATTRIBUTE_LABELS, ONCE_KEY, QUEST_TYPES, QUEST_TYPE_LABELS, bossHp, describeRule, isQuestLocked, type Quest, type QuestType } from "@life-os/core";
 import { attributeColors, questTypeColors } from "@life-os/ui-tokens";
 import { QuestEditor } from "@/components/QuestEditor";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Badge, Card } from "@/components/ui/primitives";
+import { Badge, Card, Progress } from "@/components/ui/primitives";
 import { questStreak, rewardOf } from "@life-os/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
@@ -26,6 +26,11 @@ export function QuestsPage() {
     const subtasks = q.subtasks.map((s) => (s.id === id ? { ...s, done: !s.done } : s));
     const progress = Math.round((subtasks.filter((s) => s.done).length / subtasks.length) * 100);
     await run((s) => s.updateQuest(q.id, { subtasks, progress }));
+    // Bosskampf: letzter Treffer besiegt den Boss und schließt die Quest ab.
+    if (q.type === "boss" && !q.recurrence && subtasks.every((s) => s.done)) {
+      const r = await complete({ questId: q.id, occurrenceKey: ONCE_KEY, dueAt: q.dueAt });
+      if (r?.applied) notify("xp", `🐉 ${q.title} besiegt!`);
+    }
   }
 
   return (
@@ -58,7 +63,7 @@ export function QuestsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {quests.map((q) => {
-            const reward = rewardOf(q);
+            const reward = rewardOf(q, snap.skills);
             const streak = questStreak(snap, q, today);
             return (
               <Card key={q.id} className="flex flex-col gap-2">
@@ -82,6 +87,23 @@ export function QuestsPage() {
                     </Badge>
                   ))}
                 </div>
+                {q.requiresQuestId && isQuestLocked(snap.quests, q) && (
+                  <div className="text-[11px] text-warning">🔒 Gesperrt bis „{snap.quests.find((x) => x.id === q.requiresQuestId)?.title}" erledigt ist</div>
+                )}
+                {(() => {
+                  const hp = bossHp(q);
+                  return hp ? (
+                    <div>
+                      <div className="mb-1 flex justify-between text-[11px]">
+                        <span className="text-danger">🐉 Trefferpunkte</span>
+                        <span className="text-muted">
+                          {hp.current}/{hp.max} {q.subtasks.length === 0 && "· Teilaufgaben = Angriffe"}
+                        </span>
+                      </div>
+                      <Progress value={hp.current / hp.max} className="h-2" barClassName="from-danger to-danger" />
+                    </div>
+                  ) : null;
+                })()}
                 {q.subtasks.length > 0 && (
                   <ul className="space-y-1 text-sm">
                     {q.subtasks.map((s) => (

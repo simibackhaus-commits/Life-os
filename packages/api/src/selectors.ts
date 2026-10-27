@@ -4,6 +4,7 @@ import {
   computeReward,
   computeStreak,
   evaluateAchievements,
+  isQuestLocked,
   occurrencesBetween,
   occurrencesOn,
   type InstanceStatus,
@@ -37,7 +38,7 @@ export function todaysItems(s: Snapshot, today: string): OccurrenceItem[] {
   const idx = instanceIndex(s.instances);
   const out: OccurrenceItem[] = [];
   for (const q of s.quests) {
-    if (q.status !== "aktiv") continue;
+    if (q.status !== "aktiv" || isQuestLocked(s.quests, q)) continue;
     if (q.recurrence) {
       for (const o of occurrencesOn(q.recurrence, today)) {
         const inst = idx.get(`${q.id}|${o.key}`) ?? null;
@@ -65,7 +66,7 @@ export function missedMandatory(s: Snapshot, today: string): OccurrenceItem[] {
   const out: OccurrenceItem[] = [];
   const nowIso = new Date().toISOString();
   for (const q of s.quests) {
-    if (!q.mandatory || q.status !== "aktiv") continue;
+    if (!q.mandatory || q.status !== "aktiv" || isQuestLocked(s.quests, q)) continue;
     if (q.recurrence) {
       const from = addDays(today, -7) > q.recurrence.startDate ? addDays(today, -7) : q.recurrence.startDate;
       for (const o of occurrencesBetween(q.recurrence, from, today)) {
@@ -87,7 +88,7 @@ export function upcoming(s: Snapshot, today: string, days = 7): OccurrenceItem[]
   const out: OccurrenceItem[] = [];
   const to = addDays(today, days);
   for (const q of s.quests) {
-    if (q.status !== "aktiv") continue;
+    if (q.status !== "aktiv" || isQuestLocked(s.quests, q)) continue;
     if (q.recurrence) {
       for (const o of occurrencesBetween(q.recurrence, addDays(today, 1), to).slice(0, 3)) {
         out.push({ quest: q, key: o.key, date: o.date, time: o.time, dueAt: occurrenceDueAt(o.date, o.time), status: "offen", instance: null });
@@ -119,11 +120,12 @@ export function xpPerDay(s: Snapshot, today: string, n = 14) {
   return days.map((d) => ({ day: d.slice(5).split("-").reverse().join("."), xp: sums.get(d)! }));
 }
 
-export const rewardOf = (q: Quest) => computeReward(q);
+/** Belohnung inkl. Skill-Boni des Spielers. */
+export const rewardOf = (q: Quest, skills: readonly string[] = []) => computeReward(q, new Set(skills));
 
 /** Achievements für den aktuellen Spielstand. */
 export function achievementsFor(s: Snapshot, today: string) {
-  return evaluateAchievements({ ...s, today });
+  return evaluateAchievements({ ...s, today, lifetime: s.lifetime });
 }
 
 const WEEKDAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -164,4 +166,50 @@ export function totals(s: Snapshot) {
   const coinsSpent = s.purchases.reduce((sum, p) => sum + p.cost, 0);
   const convictions = s.cases.filter((c) => c.verdict && !["freispruch", "einstellung"].includes(c.verdict)).length;
   return { completions, coinsSpent, convictions, activeQuests: s.quests.filter((q) => q.status === "aktiv").length };
+}
+
+/** Alle Termine eines Kalendertags: Vorkommen wiederkehrender Quests + einmalige Quests mit Fälligkeit an diesem Tag. */
+export function calendarDay(s: Snapshot, date: string): OccurrenceItem[] {
+  const idx = new Map(s.instances.map((i) => [`${i.questId}|${i.occurrenceKey}`, i]));
+  const out: OccurrenceItem[] = [];
+  for (const q of s.quests) {
+    if (q.status === "archiviert" || q.status === "pausiert") continue;
+    if (q.recurrence) {
+      for (const o of occurrencesOn(q.recurrence, date)) {
+        const inst = idx.get(`${q.id}|${o.key}`) ?? null;
+        out.push({ quest: q, key: o.key, date, time: o.time, dueAt: occurrenceDueAt(date, o.time), status: inst?.status ?? "offen", instance: inst });
+      }
+    } else if (q.dueAt && localDateOf(q.dueAt) === date) {
+      const inst = idx.get(`${q.id}|${ONCE_KEY}`) ?? null;
+      out.push({ quest: q, key: ONCE_KEY, date, time: new Date(q.dueAt).toTimeString().slice(0, 5), dueAt: q.dueAt, status: q.status === "erledigt" ? "erledigt" : inst?.status ?? "offen", instance: inst });
+    }
+  }
+  return out.sort((a, b) => (a.time ?? "99").localeCompare(b.time ?? "99"));
+}
+
+/** Lokales Kalenderdatum (JJJJ-MM-TT) eines ISO-Zeitpunkts. */
+export function localDateOf(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Monatsraster (Mo–So) mit Anzahl offener/erledigter Termine je Tag. */
+export function calendarMonth(s: Snapshot, year: number, month: number) {
+  const first = `${year}-${String(month).padStart(2, "0")}-01`;
+  const startOffset = (new Date(year, month - 1, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const cells: Array<{ date: string; inMonth: boolean; open: number; done: number }> = [];
+  const gridStart = addDays(first, -startOffset);
+  const total = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  for (let i = 0; i < total; i++) {
+    const date = addDays(gridStart, i);
+    const items = calendarDay(s, date);
+    cells.push({
+      date,
+      inMonth: date.slice(0, 7) === first.slice(0, 7),
+      open: items.filter((x) => x.status === "offen" || x.status === "verpasst").length,
+      done: items.filter((x) => x.status === "erledigt" || x.status === "entschuldigt").length,
+    });
+  }
+  return cells;
 }

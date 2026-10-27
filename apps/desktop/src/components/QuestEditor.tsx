@@ -17,6 +17,7 @@ import { attributeColors } from "@life-os/ui-tokens";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge, Input, Label, Select, Textarea } from "./ui/primitives";
+import { useGame } from "@/state/GameProvider";
 
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
@@ -48,7 +49,11 @@ export function QuestEditor({
     set("recurrence", patch === null ? null : ({ freq: "daily", interval: 1, startDate: localToday(), ...rec, ...patch } as RecurrenceRule));
 
   const parsed = QuestDraftSchema.safeParse(d);
-  const reward = parsed.success ? computeReward(parsed.data) : null;
+  const { snap } = useGame();
+  const reward = parsed.success ? computeReward(parsed.data, new Set(snap.skills)) : null;
+  // Mögliche Voraussetzungen: alle nicht archivierten Quests außer der bearbeiteten selbst
+  const selfId = (initial as { id?: string } | undefined)?.id;
+  const chainOptions = snap.quests.filter((q) => q.id !== selfId && q.status !== "archiviert");
   const attrs = (d.attributes ?? []) as Attribute[];
 
   async function submit() {
@@ -234,6 +239,20 @@ export function QuestEditor({
             <Plus size={14} /> Teilaufgabe
           </Button>
         </div>
+      </div>
+
+      <div>
+        <Label>Questkette – freigeschaltet nach</Label>
+        <Select value={d.requiresQuestId ?? ""} onChange={(e) => set("requiresQuestId", e.target.value || null)}>
+          <option value="">– keine Voraussetzung –</option>
+          {chainOptions.map((q) => (
+            <option key={q.id} value={q.id}>
+              {q.title}
+              {q.status === "erledigt" ? " (erledigt)" : ""}
+            </option>
+          ))}
+        </Select>
+        {d.type === "boss" && <p className="mt-1 text-[11px] text-muted">Bosskampf: Jede Teilaufgabe ist ein Treffer. Sind alle erledigt, ist der Boss besiegt.</p>}
       </div>
 
       {d.mandatory && (

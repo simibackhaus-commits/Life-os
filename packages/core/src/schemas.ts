@@ -94,6 +94,8 @@ export const QuestDraftSchema = z.object({
   estimatedMinutes: z.number().int().min(0).max(24 * 60).nullable().default(null),
   subtasks: z.array(SubtaskSchema).default([]),
   goalId: z.string().uuid().nullable().default(null),
+  /** Questkette: Diese Quest wird erst freigeschaltet, wenn die Voraussetzung erledigt ist. */
+  requiresQuestId: z.string().uuid().nullable().default(null),
   proofRequired: z.boolean().default(false),
   /** Verpflichtende Quests können bei Versäumnis vor Gericht kommen. */
   mandatory: z.boolean().default(false),

@@ -10,6 +10,8 @@ import {
   type Quest,
   type ShopItem,
   type ShopItemDraftInput,
+  type LifetimeStats,
+  type UnlockCheck,
 } from "@life-os/core";
 
 interface ShopItemRow {
@@ -186,7 +188,7 @@ export class CloudStore implements DataStore {
   async load(): Promise<Snapshot> {
     try {
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-      const [ch, quests, inst, events, cases, msgs, items, buys] = await Promise.all([
+      const [ch, quests, inst, events, cases, msgs, items, buys, skills, lifetime] = await Promise.all([
         this.sb.from("characters").select("*").eq("user_id", this.userId).single(),
         this.sb.from("quests").select("*").neq("status", "archiviert").order("created_at"),
         this.sb.from("quest_instances").select("*").or(`completed_at.gte.${since},completed_at.is.null`),
@@ -195,6 +197,8 @@ export class CloudStore implements DataStore {
         this.sb.from("court_messages").select("*").order("created_at").limit(500),
         this.sb.from("shop_items").select("*").order("cost"),
         this.sb.from("shop_purchases").select("*").order("purchased_at", { ascending: false }).limit(100),
+        this.sb.from("skills_unlocked").select("skill_id"),
+        this.sb.rpc("lifetime_stats"),
       ]);
       this.last = {
         character: characterFromRow(unwrap<CharacterRow>(ch)),
@@ -223,6 +227,8 @@ export class CloudStore implements DataStore {
           eventId: r.event_id,
           purchasedAt: r.purchased_at,
         })),
+        skills: ((skills.data ?? []) as Array<{ skill_id: string }>).map((r) => r.skill_id),
+        lifetime: (lifetime.data as LifetimeStats | null) ?? undefined,
       };
       if (this.syncState === "offline" && this.outbox.list().length === 0) this.setSync("synchron");
       return this.last;
@@ -270,16 +276,16 @@ export class CloudStore implements DataStore {
       this.outbox.push({ kind: "complete", eventId, ...input, queuedAt: new Date().toISOString() });
       this.setSync("offline");
       const quest = this.last?.quests.find((q) => q.id === input.questId);
-      const reward = quest ? computeReward(quest) : { xp: 0, coins: 0, attributeXp: {} };
+      const reward = quest ? computeReward(quest, new Set(this.last?.skills ?? [])) : { xp: 0, coins: 0, attributeXp: {}, bonus: { xpPct: 0, coinPct: 0 } };
       const lvl = levelFromXp(this.last?.character.totalXp ?? 0).level;
       return { applied: true, reward, levelBefore: lvl, levelAfter: levelFromXp((this.last?.character.totalXp ?? 0) + reward.xp).level, queued: true };
     }
-    const r = res.data as { applied: boolean; reason?: string; xp?: number; coins?: number; attribute_xp?: Record<string, number>; level_before?: number; level_after?: number };
+    const r = res.data as { applied: boolean; reason?: string; xp?: number; coins?: number; attribute_xp?: Record<string, number>; level_before?: number; level_after?: number; bonus?: { xpPct: number; coinPct: number } };
     this.emit();
     if (!r.applied) return { applied: false, reason: (r.reason ?? "already_completed") as "already_completed" };
     return {
       applied: true,
-      reward: { xp: r.xp ?? 0, coins: r.coins ?? 0, attributeXp: (r.attribute_xp ?? {}) as never },
+      reward: { xp: r.xp ?? 0, coins: r.coins ?? 0, attributeXp: (r.attribute_xp ?? {}) as never, bonus: r.bonus ?? { xpPct: 0, coinPct: 0 } },
       levelBefore: r.level_before ?? 1,
       levelAfter: r.level_after ?? 1,
     };
@@ -382,8 +388,14 @@ export class CloudStore implements DataStore {
     return r.applied ? { applied: true, coinsAfter: r.coins_after ?? 0 } : { applied: false, reason: (r.reason ?? "not_found") as "not_found" };
   }
 
+  async unlockSkill(skillId: string): Promise<UnlockCheck> {
+    const r = unwrap<{ ok: boolean; reason?: string }>(await this.sb.rpc("unlock_skill", { p_skill_id: skillId }));
+    this.emit();
+    return r.ok ? { ok: true } : { ok: false, reason: (r.reason ?? "unknown") as "unknown" };
+  }
+
   async exportData() {
-    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages", "shop_items", "shop_purchases"];
+    const tables = ["characters", "user_settings", "goals", "quests", "quest_instances", "game_events", "court_cases", "court_messages", "ai_messages", "shop_items", "shop_purchases", "skills_unlocked"];
     const out: Record<string, unknown> = { exportedAt: new Date().toISOString(), version: 1 };
     for (const t of tables) out[t] = unwrap(await this.sb.from(t).select("*"));
     return out;

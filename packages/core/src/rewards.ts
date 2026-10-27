@@ -1,6 +1,7 @@
 import type { Attribute, Difficulty, QuestType } from "./schemas.ts";
+import { skillBonus } from "./skills.ts";
 
-/** Muss mit public.quest_reward() in der Migration übereinstimmen. */
+/** Muss mit public.quest_reward_xp() / complete_quest_instance() in den Migrationen übereinstimmen. */
 export const DIFFICULTY_XP: Record<Difficulty, number> = {
   trivial: 5,
   leicht: 10,
@@ -24,11 +25,23 @@ export interface Reward {
   xp: number;
   coins: number;
   attributeXp: Partial<Record<Attribute, number>>;
+  /** Angewandte Skill-Boni in Prozent. */
+  bonus: { xpPct: number; coinPct: number };
 }
 
-export function computeReward(q: { difficulty: Difficulty; type: QuestType; attributes: Attribute[] }): Reward {
-  const xp = Math.round(DIFFICULTY_XP[q.difficulty] * TYPE_MULTIPLIER[q.type]);
-  const coins = Math.max(1, Math.round(xp / 5));
+/**
+ * Basis: XP = Schwierigkeit × Questtyp, Coins = XP / 5 (mind. 1).
+ * Skill-Boni erhöhen XP bzw. Coins prozentual (siehe skills.ts).
+ */
+export function computeReward(
+  q: { difficulty: Difficulty; type: QuestType; attributes: Attribute[] },
+  unlockedSkills: ReadonlySet<string> = new Set(),
+): Reward {
+  const baseXp = Math.round(DIFFICULTY_XP[q.difficulty] * TYPE_MULTIPLIER[q.type]);
+  const baseCoins = Math.max(1, Math.round(baseXp / 5));
+  const bonus = skillBonus(q.attributes, unlockedSkills);
+  const xp = Math.round((baseXp * (100 + bonus.xpPct)) / 100);
+  const coins = Math.round((baseCoins * (100 + bonus.coinPct)) / 100);
   const attributeXp: Partial<Record<Attribute, number>> = {};
   const attrs = [...new Set(q.attributes)];
   if (attrs.length > 0) {
@@ -36,5 +49,5 @@ export function computeReward(q: { difficulty: Difficulty; type: QuestType; attr
     const share = Math.floor(xp / attrs.length);
     attrs.forEach((a, i) => (attributeXp[a] = share + (i === 0 ? xp - share * attrs.length : 0)));
   }
-  return { xp, coins, attributeXp };
+  return { xp, coins, attributeXp, bonus };
 }

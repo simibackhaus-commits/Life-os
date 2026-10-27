@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { computeReward, levelFromXp, xpToNext } from "@life-os/core";
+import { ATTRIBUTE_CURVE, computeReward, levelFromXp, xpToNext } from "@life-os/core";
 
 /**
  * Führt die echten Migrationen gegen Postgres (PGlite, WASM) aus.
@@ -47,7 +47,7 @@ beforeAll(async () => {
     grant select, insert, update, delete on all tables in schema public to authenticated;
     revoke update on public.characters from authenticated; grant update (name, avatar, class_name) on public.characters to authenticated;
     revoke update on public.court_cases from authenticated; grant update (plea) on public.court_cases to authenticated;
-    revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases from authenticated;
+    revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases, public.skills_unlocked from authenticated;
     insert into auth.users (id) values ('${USER_A}'), ('${USER_B}');
   `);
 });
@@ -227,6 +227,54 @@ describe("Belohnungsshop", () => {
     await expect(
       as(USER_B, () => db.query("insert into public.shop_purchases (user_id, title, cost, event_id) values ($1, 'x', 1, $2)", [USER_B, ev(1)])),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe("Skilltree, Boni, Questketten", () => {
+  it("attribute_level stimmt mit packages/core überein", async () => {
+    for (const xp of [0, 49, 50, 500, 5000, 50000]) {
+      const r = await one<{ v: number }>("select public.attribute_level($1) as v", [xp]);
+      expect(r.v, `xp ${xp}`).toBe(levelFromXp(xp, ATTRIBUTE_CURVE).level);
+    }
+  });
+
+  it("Freischalten prüft Reihenfolge, Level und Punkte; Bonus wirkt beim Abschluss", async () => {
+    // Nutzer B auf Ausdauer-Level 5 bringen
+    await db.query("update public.characters set attribute_xp = jsonb_build_object('ausdauer', 1000) where user_id = $1", [USER_B]);
+    const unlock = (id: string) => as(USER_B, () => one<{ r: { ok: boolean; reason?: string } }>("select public.unlock_skill($1) as r", [id]));
+    expect((await unlock("ausdauer_2")).r).toEqual({ ok: false, reason: "previous" });
+    expect((await unlock("ausdauer_1")).r).toEqual({ ok: true });
+    expect((await unlock("ausdauer_1")).r).toEqual({ ok: false, reason: "already" });
+    expect((await unlock("ausdauer_2")).r).toEqual({ ok: true });
+    expect((await unlock("ausdauer_3")).r).toEqual({ ok: false, reason: "level" });
+    expect((await unlock("magie_1")).r).toEqual({ ok: false, reason: "unknown" });
+
+    const q = await as(USER_B, () =>
+      one<{ id: string }>("insert into public.quests (title, type, difficulty, attributes) values ('Lauf', 'side', 'schwer', '{ausdauer,staerke}') returning id"),
+    );
+    const r = await as(USER_B, () => one<{ r: { xp: number; coins: number } }>("select public.complete_quest_instance($1, $2, 'once') as r", [ev(50), q.id]));
+    const ts = computeReward({ difficulty: "schwer", type: "side", attributes: ["ausdauer", "staerke"] }, new Set(["ausdauer_1", "ausdauer_2"]));
+    expect(r.r.xp).toBe(ts.xp);
+    expect(r.r.coins).toBe(ts.coins);
+    expect(ts.xp).toBe(58); // 50 + 15 %
+
+    await expect(as(USER_B, () => db.query("insert into public.skills_unlocked (user_id, skill_id) values ($1, 'staerke_1')", [USER_B]))).rejects.toThrow(/permission denied/);
+  });
+
+  it("gesperrte Folgequest wird abgelehnt, nach Abschluss der Voraussetzung freigegeben", async () => {
+    const a = await as(USER_B, () => one<{ id: string }>("insert into public.quests (title) values ('Kapitel 1') returning id"));
+    const b = await as(USER_B, () => one<{ id: string }>("insert into public.quests (title, requires_quest_id) values ('Kapitel 2', $1) returning id", [a.id]));
+    const done = (e: string, id: string) => as(USER_B, () => one<{ r: { applied: boolean; reason?: string } }>("select public.complete_quest_instance($1, $2, 'once') as r", [e, id]));
+    expect((await done(ev(51), b.id)).r).toEqual({ applied: false, reason: "quest_locked" });
+    expect((await done(ev(52), a.id)).r.applied).toBe(true);
+    expect((await done(ev(53), b.id)).r.applied).toBe(true);
+  });
+
+  it("lifetime_stats zählt nur eigene Daten", async () => {
+    const r = await as(USER_B, () => one<{ s: { completions: number; completedTypes: string[]; purchases: number } }>("select public.lifetime_stats() as s"));
+    expect(r.s.completions).toBe(3);
+    expect(r.s.completedTypes.sort()).toEqual(["side"]);
+    expect(r.s.purchases).toBe(1);
   });
 });
 
