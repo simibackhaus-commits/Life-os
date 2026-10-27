@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { localToday } from "@life-os/core";
+import type { DaySettlement } from "@life-os/core";
 import type { CompletionOutcome, DataStore, Snapshot, SyncState } from "@life-os/api";
 
 export interface Toast {
@@ -16,6 +17,9 @@ interface GameCtx {
   toasts: Toast[];
   levelUp: number | null;
   dismissLevelUp(): void;
+  /** Ergebnis des letzten Tagesabschlusses (für die Übersicht) */
+  settlement: DaySettlement[] | null;
+  dismissSettlement(): void;
   notify(kind: Toast["kind"], text: string): void;
   /** Führt eine Store-Aktion aus, meldet Fehler als Toast und lädt neu. */
   run<T>(fn: (s: DataStore) => Promise<T>): Promise<T | undefined>;
@@ -37,6 +41,7 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
   const [sync, setSync] = useState<{ state: SyncState; pending: number }>({ state: "lokal", pending: 0 });
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [levelUp, setLevelUp] = useState<number | null>(null);
+  const [settlement, setSettlement] = useState<DaySettlement[] | null>(null);
   const [today, setToday] = useState(localToday());
   const toastId = useRef(0);
 
@@ -54,6 +59,17 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
       setLoadError(e instanceof Error ? e.message : String(e));
     }
   }, [store]);
+
+  // Tagesabschluss: beim Start und sobald ein neuer Spieltag (04:00) beginnt
+  useEffect(() => {
+    void store
+      .settleDays()
+      .then((list) => {
+        if (list.length === 0) return;
+        setSettlement(list);
+      })
+      .catch(() => {});
+  }, [store, today]);
 
   useEffect(() => {
     void reload();
@@ -85,7 +101,7 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
       const r = await run((s) => s.completeOccurrence(input));
       if (!r) return r;
       if (r.applied) {
-        notify("xp", `+${r.reward.xp} XP · +${r.reward.coins} Coins${r.queued ? " (wird synchronisiert)" : ""}`);
+        notify("xp", `+${r.reward.xp} XP · +${r.reward.coins} Coins vorgemerkt${r.queued ? " (wird synchronisiert)" : ""}`);
         if (r.levelAfter > r.levelBefore) setLevelUp(r.levelAfter);
       } else if (r.reason === "already_completed") notify("info", "Bereits erledigt.");
       return r;
@@ -103,12 +119,14 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
         toasts,
         levelUp,
         dismissLevelUp: () => setLevelUp(null),
+        settlement,
+        dismissSettlement: () => setSettlement(null),
         notify,
         run,
         complete,
         reload,
       },
-    [store, snap, today, sync, toasts, levelUp, notify, run, complete, reload],
+    [store, snap, today, sync, toasts, levelUp, settlement, notify, run, complete, reload],
   );
 
   if (loadError && !snap)

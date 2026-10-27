@@ -58,6 +58,8 @@ export interface EventRow {
   ref_id: string | null;
   note: string;
   created_at: string;
+  game_day?: string | null;
+  settled_at?: string | null;
 }
 
 export const questFromRow = (r: QuestRow): Quest => ({
@@ -136,4 +138,7 @@ export const eventFromRow = (r: EventRow): GameEvent => ({
   refId: r.ref_id,
   note: r.note,
   createdAt: r.created_at,
+  gameDay: r.game_day ?? undefined,
+  // fehlende Spalte (alte Datenbank) = gebucht
+  settledAt: r.settled_at === undefined ? undefined : r.settled_at,
 });

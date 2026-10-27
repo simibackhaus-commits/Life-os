@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import type { DataStore } from "@life-os/api";
-import { LevelUp, Toast } from "@/components/ui";
+import { LevelUp, SettlementModal, Toast } from "@/components/ui";
 import { LockScreen, LoginScreen } from "@/components/gates";
 import { createCloudStore, createLocalStore, supabase } from "@/lib/backend";
 import { getPref, rescheduleReminders } from "@/lib/device";
@@ -37,6 +37,7 @@ function Shell({ store }: { store: DataStore }) {
         {(
           [
             ["templates", "Vorlagen"],
+            ["quest/[id]", "Quest bearbeiten"],
             ["shop", "Belohnungsshop"],
             ["skills", "Skilltree"],
             ["calendar", "Kalender"],
@@ -60,6 +61,7 @@ function Shell({ store }: { store: DataStore }) {
       <ReminderSync />
       <Toast />
       <LevelUp />
+      <SettlementModal />
     </GameProvider>
   );
 }

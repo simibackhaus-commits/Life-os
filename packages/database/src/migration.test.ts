@@ -47,7 +47,7 @@ beforeAll(async () => {
     grant select, insert, update, delete on all tables in schema public to authenticated;
     revoke update on public.characters from authenticated; grant update (name, avatar, class_name, title) on public.characters to authenticated;
     revoke update on public.court_cases from authenticated; grant update (plea) on public.court_cases to authenticated;
-    revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases, public.skills_unlocked, public.focus_sessions from authenticated;
+    revoke insert, update, delete on public.game_events, public.quest_instances, public.shop_purchases, public.skills_unlocked, public.focus_sessions, public.day_settlements from authenticated;
     revoke update on public.finance_entries from authenticated;
     insert into auth.users (id) values ('${USER_A}'), ('${USER_B}');
   `);
@@ -109,13 +109,11 @@ describe("Questabschlüsse", () => {
     expect((await call(ev(2), `${today}T07:00`)).r).toEqual({ applied: false, reason: "already_completed" });
     expect((await call(ev(3), `${today}T21:00`)).r.applied).toBe(true);
 
-    const c = await one<{ total_xp: number; coins: number; attribute_xp: Record<string, number> }>(
-      "select total_xp::int, coins::int, attribute_xp from public.characters where user_id = $1",
-      [USER_A],
-    );
-    expect(c).toEqual({ total_xp: 10, coins: 2, attribute_xp: { gesundheit: 10 } });
-    const events = await one<{ n: number }>("select count(*)::int as n from public.game_events");
-    expect(events.n).toBe(2); // der abgelehnte Versuch hinterlässt kein Event
+    // Tagesabschluss-Modell: nur vorgemerkt, Konto unverändert
+    const c = await one<{ total_xp: number; coins: number }>("select total_xp::int, coins::int from public.characters where user_id = $1", [USER_A]);
+    expect(c).toEqual({ total_xp: 0, coins: 0 });
+    const pending = await one<{ n: number; xp: number }>("select count(*)::int as n, sum(xp_delta)::int as xp from public.game_events where settled_at is null");
+    expect(pending).toEqual({ n: 2, xp: 10 }); // der abgelehnte Versuch hinterlässt kein Event
   });
 
   it("lehnt Vorkommen in der Zukunft ab", async () => {
@@ -124,17 +122,31 @@ describe("Questabschlüsse", () => {
     ).rejects.toThrow(/future/);
   });
 
-  it("Rückgängig bucht exakt zurück", async () => {
+  it("Rückgängig vor dem Tagesabschluss verwirft die Vormerkung", async () => {
     const inst = await one<{ id: string }>("select id from public.quest_instances where occurrence_key like '%T21:00'");
     const r = await as(USER_A, () =>
       one<{ r: { applied: boolean } }>("select public.uncomplete_quest_instance($1, $2) as r", [ev(5), inst.id]),
     );
     expect(r.r.applied).toBe(true);
-    const c = await one<{ total_xp: number; coins: number }>(
-      "select total_xp::int, coins::int from public.characters where user_id = $1",
-      [USER_A],
-    );
-    expect(c).toEqual({ total_xp: 5, coins: 1 });
+    const pending = await one<{ n: number }>("select count(*)::int as n from public.game_events where user_id = $1 and settled_at is null", [USER_A]);
+    expect(pending.n).toBe(1);
+  });
+
+  it("Tagesabschluss bucht vergangene Spieltage genau einmal, danach ist der Tag geschlossen", async () => {
+    const settle = () => as(USER_A, () => one<{ r: Array<{ xp: number; coins: number; completions: number }> }>("select public.settle_days() as r"));
+    expect((await settle()).r).toEqual([]); // heutiger Spieltag wird nicht abgerechnet
+    await db.query("update public.game_events set game_day = game_day - 1 where user_id = $1 and settled_at is null", [USER_A]); // Nacht vergeht
+    const r = await settle();
+    expect(r.r).toHaveLength(1);
+    expect(r.r[0]).toMatchObject({ xp: 5, coins: 1, completions: 1, levelBefore: 1, levelAfter: 1 });
+    expect((await settle()).r).toEqual([]);
+    const c = await one<{ total_xp: number; coins: number; attribute_xp: Record<string, number> }>("select total_xp::int, coins::int, attribute_xp from public.characters where user_id = $1", [USER_A]);
+    expect(c).toEqual({ total_xp: 5, coins: 1, attribute_xp: { gesundheit: 5 } });
+    const inst = await one<{ id: string }>("select id from public.quest_instances where status = 'erledigt' and user_id = $1", [USER_A]);
+    const u = await as(USER_A, () => one<{ r: { applied: boolean; reason?: string } }>("select public.uncomplete_quest_instance($1, $2) as r", [ev(6), inst.id]));
+    expect(u.r).toEqual({ applied: false, reason: "day_closed" });
+    const s = await as(USER_A, () => db.query("select day, xp from public.day_settlements"));
+    expect(s.rows).toHaveLength(1);
   });
 });
 
@@ -325,10 +337,15 @@ describe("Fokus-Dungeons und Titel", () => {
 
     const before = await one<{ xp: number }>("select total_xp::int as xp from public.characters where user_id = $1", [USER_B]);
     await db.query("update public.focus_sessions set started_at = now() - interval '25 minutes' where id = $1", [sid]); // Zeit vergehen lassen
-    expect((await finish(ev(61))).r).toEqual({ applied: true, xp: 30, coins: 6 });
+    expect((await finish(ev(61))).r).toEqual({ applied: true, pending: true, xp: 30, coins: 6 });
     expect((await finish(ev(62))).r).toEqual({ applied: false, reason: "not_running" });
+    // Gutschrift erst beim Tagesabschluss
+    const pend = await one<{ xp: number }>("select sum(xp_delta)::int as xp from public.game_events where user_id = $1 and settled_at is null", [USER_B]);
+    await db.query("update public.game_events set game_day = game_day - 1 where user_id = $1 and settled_at is null", [USER_B]);
+    await as(USER_B, () => db.query("select public.settle_days()"));
     const after = await one<{ xp: number }>("select total_xp::int as xp from public.characters where user_id = $1", [USER_B]);
-    expect(after.xp - before.xp).toBe(30);
+    expect(after.xp - before.xp).toBe(pend.xp);
+    expect(pend.xp).toBeGreaterThanOrEqual(30);
 
     await expect(as(USER_B, () => db.query("update public.focus_sessions set started_at = now() - interval '2 hours'"))).rejects.toThrow(/permission denied/);
   });

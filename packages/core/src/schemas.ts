@@ -161,5 +161,15 @@ export const GameEventSchema = z.object({
   refId: z.string().nullable(),
   note: z.string().max(300).default(""),
   createdAt: z.string(),
+  /** Spieltag, dem das Ereignis zugeordnet ist (Tagesabschluss). */
+  gameDay: z.string().optional(),
+  /**
+   * Zeitpunkt der Gutschrift. null = vorgemerkt (wird beim Tagesabschluss gebucht).
+   * Fehlt das Feld (ältere Daten), gilt das Ereignis als gebucht.
+   */
+  settledAt: z.string().nullable().optional(),
 });
 export type GameEvent = z.infer<typeof GameEventSchema>;
+
+/** Noch nicht gebuchte (vorgemerkte) Belohnung? */
+export const isPending = (e: Pick<GameEvent, "settledAt">) => e.settledAt === null;

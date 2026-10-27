@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { QUEST_TYPE_LABELS } from "@life-os/core";
 import { questTypeColors } from "@life-os/ui-tokens";
 import { calendarDay, calendarMonth } from "@life-os/api";
+import { EditQuestButton } from "@/components/EditQuestButton";
 import { QuestItem } from "@/components/game";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, CardTitle } from "@/components/ui/primitives";
@@ -97,6 +98,7 @@ export function CalendarPage() {
                 <span className={cn("text-xs", i.status === "erledigt" ? "text-success" : selected < today ? "text-danger" : "text-muted")}>
                   {selected < today && i.status === "offen" ? "verpasst" : STATUS_LABEL[i.status]}
                 </span>
+                <EditQuestButton quest={i.quest} />
               </li>
             ))}
           </ul>

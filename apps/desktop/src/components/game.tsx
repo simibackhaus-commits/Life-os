@@ -1,17 +1,20 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Clock, Coins, Crown, Flame, Gavel, Sparkles, Undo2 } from "lucide-react";
-import { ATTRIBUTES, ATTRIBUTE_CURVE, ATTRIBUTE_LABELS, QUEST_TYPE_LABELS, levelFromXp, titleForLevel, type Character } from "@life-os/core";
+import { ATTRIBUTES, ATTRIBUTE_CURVE, ATTRIBUTE_LABELS, QUEST_TYPE_LABELS, levelFromXp, pendingRewards, titleForLevel, type Character } from "@life-os/core";
 import { attributeColors, questTypeColors } from "@life-os/ui-tokens";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { useState } from "react";
 import { questStreak, rewardOf, xpPerDay, type OccurrenceItem } from "@life-os/api";
 import { cn } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
+import { EditQuestButton } from "./EditQuestButton";
 import { Button } from "./ui/button";
 import { Badge, Card, CardTitle, Progress } from "./ui/primitives";
 
 export function CharacterSummary({ character }: { character: Character }) {
+  const { snap } = useGame();
   const lvl = levelFromXp(character.totalXp);
+  const pending = pendingRewards(snap.events);
   return (
     <Card className="relative overflow-hidden">
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet/20 blur-3xl" />
@@ -39,6 +42,11 @@ export function CharacterSummary({ character }: { character: Character }) {
             <div className="mt-1 text-[11px] text-muted">
               {lvl.xpInLevel} / {lvl.xpForLevel} XP bis Level {lvl.level + 1} · gesamt {character.totalXp} XP
             </div>
+            {pending.count > 0 && (
+              <div className="mt-1 text-[11px] text-violet" title="Wird beim Tagesabschluss (erster Start nach 04:00) gutgeschrieben. Bis dahin kannst du Abschlüsse zurücknehmen.">
+                ⏳ Heute vorgemerkt: +{pending.xp} XP · +{pending.coins} Coins – Gutschrift beim Tagesabschluss
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -97,6 +105,7 @@ export function QuestItem({ item, onCourt }: { item: OccurrenceItem; onCourt?: (
         onClick={() => void toggle()}
         disabled={excused}
         aria-label={done ? "Abschluss rückgängig machen" : "Quest abschließen"}
+        title={done ? "Erneut klicken nimmt den Abschluss zurück (bis zum Tagesabschluss)" : "Abschließen"}
         className={cn(
           "relative grid h-7 w-7 shrink-0 place-items-center rounded-md border-2 transition-colors",
           done ? "border-success bg-success/20 text-success" : "border-muted/50 text-transparent hover:border-gold hover:text-gold/60",
@@ -135,6 +144,7 @@ export function QuestItem({ item, onCourt }: { item: OccurrenceItem; onCourt?: (
       {done && item.instance && (
         <Undo2 size={13} className="absolute right-1 top-1 hidden text-muted group-hover:block" aria-hidden />
       )}
+      <EditQuestButton quest={item.quest} className="opacity-0 group-hover:opacity-100 focus:opacity-100" />
       {onCourt && (
         <Button size="sm" variant="ghost" onClick={onCourt} title="Verfahren eröffnen">
           <Gavel size={14} />
@@ -191,6 +201,47 @@ export function LevelUpOverlay() {
             <div className="-mt-32 mb-16 font-display text-6xl text-gold drop-shadow-[0_0_24px_rgba(230,180,80,0.6)]">{levelUp}</div>
             <div className="font-display text-3xl tracking-widest text-text">LEVEL UP</div>
             <div className="mt-2 text-sm text-muted">Neuer Titel: {titleForLevel(levelUp)} · Klicken zum Fortfahren</div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/** Tagesabschluss-Übersicht beim ersten Start nach 04:00 */
+export function SettlementOverlay() {
+  const { settlement, dismissSettlement, snap } = useGame();
+  const total = settlement?.reduce((a, d) => ({ xp: a.xp + d.xp, coins: a.coins + d.coins, done: a.done + d.completions }), { xp: 0, coins: 0, done: 0 });
+  const levelUp = settlement?.find((d) => d.levelAfter > d.levelBefore);
+  return (
+    <AnimatePresence>
+      {settlement && total && (
+        <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/75 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={dismissSettlement}>
+          <motion.div initial={{ scale: 0.85, y: 20 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 160, damping: 16 }} className="panel w-[min(460px,calc(100vw-32px))] p-6 text-center">
+            <div className="text-4xl">🌅</div>
+            <div className="mt-1 font-display text-2xl text-gold">Tagesabschluss</div>
+            <div className="text-xs text-muted">
+              {settlement.map((d) => new Date(`${d.day}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })).join(" · ")}
+            </div>
+            <div className="my-5 grid grid-cols-3 gap-2">
+              <div>
+                <div className="font-display text-2xl text-text">{total.done}</div>
+                <div className="text-[11px] text-muted">Quests</div>
+              </div>
+              <div>
+                <div className="font-display text-2xl text-gold">+{total.xp}</div>
+                <div className="text-[11px] text-muted">XP</div>
+              </div>
+              <div>
+                <div className="font-display text-2xl text-electric">+{total.coins}</div>
+                <div className="text-[11px] text-muted">Coins</div>
+              </div>
+            </div>
+            {levelUp && <div className="mb-3 font-display text-xl text-gold">✨ LEVEL UP → Level {Math.max(...settlement.map((d) => d.levelAfter))} · {titleForLevel(Math.max(...settlement.map((d) => d.levelAfter)))}</div>}
+            <div className="text-sm text-muted">
+              Kontostand jetzt: {snap.character.coins} Coins · {snap.character.totalXp} XP
+            </div>
+            <div className="mt-4 text-[11px] text-muted">Klicken zum Fortfahren</div>
           </motion.div>
         </motion.div>
       )}

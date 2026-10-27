@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Modal, Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { ATTRIBUTES, ATTRIBUTE_CURVE, ATTRIBUTE_LABELS, QUEST_TYPE_LABELS, levelFromXp, titleForLevel, type Character } from "@life-os/core";
+import { ATTRIBUTES, ATTRIBUTE_CURVE, ATTRIBUTE_LABELS, QUEST_TYPE_LABELS, levelFromXp, pendingRewards, titleForLevel, type Character } from "@life-os/core";
 import { achievementsFor, questStreak, rewardOf, type OccurrenceItem } from "@life-os/api";
 import { attributeColors, colors, questTypeColors, s } from "@/lib/theme";
 import { useGame } from "@/state/GameProvider";
@@ -72,7 +73,9 @@ export function Button({
 }
 
 export function CharacterHeader({ character }: { character: Character }) {
+  const { snap } = useGame();
   const lvl = levelFromXp(character.totalXp);
+  const pending = pendingRewards(snap.events);
   return (
     <Card>
       <View style={[s.row, { gap: 14 }]}>
@@ -97,6 +100,9 @@ export function CharacterHeader({ character }: { character: Character }) {
         <Text style={s.small}>
           {lvl.xpInLevel} / {lvl.xpForLevel} XP bis Level {lvl.level + 1}
         </Text>
+        {pending.count > 0 ? (
+          <Text style={[s.small, { color: colors.violet }]}>⏳ Heute vorgemerkt: +{pending.xp} XP · +{pending.coins} Coins – Gutschrift beim Tagesabschluss (ab 04:00)</Text>
+        ) : null}
       </View>
     </Card>
   );
@@ -177,7 +183,9 @@ export function QuestRow({ item, onCourt }: { item: OccurrenceItem; onCourt?: ()
   }
 
   async function onLongPress() {
-    if (!done || !item.instance) return;
+    // offen: bearbeiten · erledigt: zurücknehmen (bis zum Tagesabschluss)
+    if (!done) return router.push({ pathname: "/quest/[id]", params: { id: item.quest.id } });
+    if (!item.instance) return;
     const ok = await run((s) => s.uncomplete(item.instance!.id));
     if (ok) notify("info", "Abschluss zurückgenommen.");
   }
@@ -268,6 +276,45 @@ export function ActionSheet({ title, message, options, onClose }: { title: strin
           ))}
           <Button label="Abbrechen" variant="outline" onPress={onClose} />
         </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/** Tagesabschluss-Übersicht beim ersten Start nach 04:00 */
+export function SettlementModal() {
+  const { settlement, dismissSettlement, snap } = useGame();
+  if (!settlement) return null;
+  const total = settlement.reduce((a, d) => ({ xp: a.xp + d.xp, coins: a.coins + d.coins, done: a.done + d.completions }), { xp: 0, coins: 0, done: 0 });
+  const top = Math.max(...settlement.map((d) => d.levelAfter));
+  const levelUp = settlement.some((d) => d.levelAfter > d.levelBefore);
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={dismissSettlement}>
+      <Pressable onPress={dismissSettlement} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <View style={[s.card, { width: "100%", alignItems: "center", gap: 6, padding: 22 }]}>
+          <Text style={{ fontSize: 40 }}>🌅</Text>
+          <Text style={[s.h1, { fontSize: 22 }]}>Tagesabschluss</Text>
+          <Text style={s.small}>{settlement.map((d) => new Date(`${d.day}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })).join(" · ")}</Text>
+          <View style={[s.row, { gap: 22, marginVertical: 10 }]}>
+            <View style={{ alignItems: "center" }}>
+              <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>{total.done}</Text>
+              <Text style={s.small}>Quests</Text>
+            </View>
+            <View style={{ alignItems: "center" }}>
+              <Text style={{ color: colors.gold, fontSize: 24, fontWeight: "800" }}>+{total.xp}</Text>
+              <Text style={s.small}>XP</Text>
+            </View>
+            <View style={{ alignItems: "center" }}>
+              <Text style={{ color: colors.blue, fontSize: 24, fontWeight: "800" }}>+{total.coins}</Text>
+              <Text style={s.small}>Coins</Text>
+            </View>
+          </View>
+          {levelUp ? <Text style={{ color: colors.gold, fontSize: 18, fontWeight: "800" }}>✨ LEVEL UP → {top} · {titleForLevel(top)}</Text> : null}
+          <Text style={s.small}>
+            Kontostand: {snap.character.coins} Coins · {snap.character.totalXp} XP
+          </Text>
+          <Text style={[s.small, { marginTop: 8 }]}>Tippen zum Fortfahren</Text>
+        </View>
       </Pressable>
     </Modal>
   );

@@ -18,25 +18,60 @@ class MemoryStorage implements KeyValueStorage {
   }
 }
 
+/** LocalStore mit steuerbarer Uhr; nextDay() lässt die Nacht vergehen und schließt den Tag ab. */
+function clockStore(storage: KeyValueStorage = new MemoryStorage()) {
+  let clock = Date.parse("2026-10-27T10:00:00.000Z");
+  const store = new LocalStore(storage, () => crypto.randomUUID(), () => new Date(clock));
+  return {
+    store,
+    tick: (ms: number) => (clock += ms),
+    async nextDay() {
+      clock += 24 * 3_600_000;
+      return store.settleDays();
+    },
+  };
+}
+
 describe("LocalStore", () => {
+  it("Tagesabschluss: vormerken, zurücknehmen, am nächsten Morgen buchen, dann geschlossen", async () => {
+    const { store, nextDay } = clockStore();
+    const q = await store.createQuest({ title: "Lesen", difficulty: "mittel", type: "daily", recurrence: { freq: "daily", interval: 1, startDate: "2026-10-01" } });
+    const r1 = await store.completeOccurrence({ questId: q.id, occurrenceKey: "2026-10-27", dueAt: null });
+    expect(r1).toMatchObject({ applied: true, pending: true });
+    let s = await store.load();
+    expect(s.character.totalXp).toBe(0);
+    const inst = s.instances[0]!;
+    expect(await store.uncomplete(inst.id)).toBe(true); // Fehler korrigieren – nichts gebucht
+    await store.completeOccurrence({ questId: q.id, occurrenceKey: "2026-10-27", dueAt: null });
+    expect(await store.settleDays()).toEqual([]); // heute noch nicht
+    const settled = await nextDay();
+    expect(settled).toEqual([{ day: "2026-10-27", xp: 25, coins: 5, completions: 1, levelBefore: 1, levelAfter: 1 }]);
+    s = await store.load();
+    expect(s.character).toMatchObject({ totalXp: 25, coins: 5 });
+    await expect(store.uncomplete(s.instances[0]!.id)).rejects.toThrow(/abgeschlossen/);
+  });
+
   it("Quest anlegen, abschließen, persistieren", async () => {
     const storage = new MemoryStorage();
-    const store = new LocalStore(storage);
+    const { store, nextDay } = clockStore(storage);
     const q = await store.createQuest({ title: "Laufen", difficulty: "schwer", attributes: ["ausdauer"] });
     const r = await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
     expect(r.applied).toBe(true);
     const again = await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
     expect(again.applied).toBe(false);
+    await nextDay();
 
     const reloaded = await new LocalStore(storage).load();
+
     expect(reloaded.character.totalXp).toBe(50);
     expect(reloaded.quests[0]!.status).toBe("erledigt");
   });
 
   it("Gericht: Krankheit wird freigesprochen, Wiederholungstäter verliert Coins, Berufung hebt auf", async () => {
-    const store = new LocalStore(new MemoryStorage());
+    const { store, nextDay } = clockStore();
     const q = await store.createQuest({ title: "Training", difficulty: "schwer", mandatory: true });
     await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
+    await nextDay();
     await store.updateQuest(q.id, { status: "aktiv" });
 
     const c1 = await store.openCase({ questId: q.id, occurrenceKey: "2026-10-20", charge: "Training versäumt", questXp: 50, questCoins: 10 });
@@ -63,11 +98,14 @@ describe("LocalStore", () => {
   });
 
   it("Shop: Belohnung anlegen, kaufen, Guthaben prüfen", async () => {
-    const store = new LocalStore(new MemoryStorage());
+    const { store, nextDay } = clockStore();
     const item = await store.createShopItem({ title: "Pizza", cost: 30 });
     expect(await store.purchase(item.id)).toEqual({ applied: false, reason: "insufficient_coins" });
     const q = await store.createQuest({ title: "Großprojekt", type: "legendary", difficulty: "episch" });
     await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
+    // vorgemerkte Coins sind noch nicht ausgebbar
+    expect(await store.purchase(item.id)).toEqual({ applied: false, reason: "insufficient_coins" });
+    await nextDay();
     const r = await store.purchase(item.id);
     expect(r).toEqual({ applied: true, coinsAfter: 70 });
     const s = await store.load();
@@ -79,10 +117,11 @@ describe("LocalStore", () => {
   });
 
   it("Skills: Freischalten nur mit Level, Bonus in Belohnung", async () => {
-    const store = new LocalStore(new MemoryStorage());
+    const { store, nextDay } = clockStore();
     expect(await store.unlockSkill("ausdauer_1")).toEqual({ ok: false, reason: "level" });
     const q = await store.createQuest({ title: "Marathon", type: "legendary", difficulty: "episch", attributes: ["ausdauer"] });
     await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
+    await nextDay();
     expect(await store.unlockSkill("ausdauer_1")).toEqual({ ok: true });
     const s = await store.load();
     expect(s.skills).toEqual(["ausdauer_1"]);
@@ -150,6 +189,8 @@ describe("LocalStore", () => {
     clock += 15 * 60_000;
     expect(await store.finishFocus(s1.id)).toEqual({ applied: true, xp: 30, coins: 6 });
     expect(await store.finishFocus(s1.id)).toEqual({ applied: false, reason: "not_running" });
+    clock += 24 * 3_600_000;
+    await store.settleDays();
     const s = await store.load();
     expect(s.character.totalXp).toBe(30);
     expect(s.character.attributeXp.intelligenz).toBe(30);

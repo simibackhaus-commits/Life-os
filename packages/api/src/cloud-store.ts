@@ -11,6 +11,7 @@ import {
   type ShopItem,
   type ShopItemDraftInput,
   type LifetimeStats,
+  type DaySettlement,
   GoalDraftSchema,
   FinanceEntrySchema,
   WorkoutSchema,
@@ -157,7 +158,7 @@ import {
   type InstanceRow,
   type QuestRow,
 } from "@life-os/database";
-import type { KeyValueStorage } from "./local-store.ts";
+import { DAY_CLOSED_MESSAGE, type KeyValueStorage } from "./local-store.ts";
 import { Outbox, isNetworkError, type OutboxItem } from "./outbox.ts";
 import { FeatureUnavailableError, type ChatReply, type CompletionOutcome, type CourtCase, type CourtMessage, type DataStore, type QuestPatch, type Snapshot, type SyncState } from "./types.ts";
 
@@ -408,6 +409,7 @@ export class CloudStore implements DataStore {
     if (!r.applied) return { applied: false, reason: (r.reason ?? "already_completed") as "already_completed" };
     return {
       applied: true,
+      pending: true,
       reward: { xp: r.xp ?? 0, coins: r.coins ?? 0, attributeXp: (r.attribute_xp ?? {}) as never, bonus: r.bonus ?? { xpPct: 0, coinPct: 0 } },
       levelBefore: r.level_before ?? 1,
       levelAfter: r.level_after ?? 1,
@@ -415,11 +417,24 @@ export class CloudStore implements DataStore {
   }
 
   async uncomplete(instanceId: string) {
-    const r = unwrap<{ applied: boolean }>(
+    const r = unwrap<{ applied: boolean; reason?: string }>(
       await this.sb.rpc("uncomplete_quest_instance", { p_event_id: crypto.randomUUID(), p_instance_id: instanceId }),
     );
+    if (r.reason === "day_closed") throw new Error(DAY_CLOSED_MESSAGE);
     this.emit();
     return r.applied;
+  }
+
+  async settleDays(): Promise<DaySettlement[]> {
+    const res = await this.sb.rpc("settle_days");
+    if (res.error) {
+      // Server noch ohne Tagesabschluss-Migration: nichts zu tun
+      if (/settle_days/.test(res.error.message)) return [];
+      throw new Error(res.error.message);
+    }
+    const list = (res.data ?? []) as DaySettlement[];
+    if (list.length) this.emit();
+    return list;
   }
 
   async updateCharacter(patch: { name?: string; className?: string; avatar?: string; title?: string }) {

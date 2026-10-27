@@ -1,7 +1,7 @@
 # Roadmap & Entwicklungsstatus
 
 Status: **FERTIG** (implementiert und getestet) · **IN ARBEIT** · **GEPLANT** · **BLOCKIERT**
-Letzte Aktualisierung: 2026-10-27 (Sitzung 1)
+Letzte Aktualisierung: 2026-10-28
 
 ## Phase 1 – Spielbarer Kern
 
@@ -80,11 +80,14 @@ Vorgabe des Nutzers (2026-10-27): vorerst nur Bausteine ohne laufende Kosten (ke
 | Hauptquartier (10 Räume nach Attributen, Burg-Rang, Trophäenhalle) | FERTIG | Rein berechnet, keine Speicherung; Desktop + iPhone im Browser geprüft |
 | Storysystem (11 Kapitel, freigeschaltet nach Level) | FERTIG | Personalisiert mit Name und Klasse |
 | Saison-Events (12 Monats-Herausforderungen) + Jahresrückblick | FERTIG | Messwerte aus Quests, Trainings, Dungeons, Sparbuchungen; Dashboard- und Startbildschirm-Karte |
+| Quest-Editor für alle Tage (Zeit, Wochentage, Start, Fälligkeit) | FERTIG | Desktop: Stift in Questliste und Kalender (auch vergangene/zukünftige Tage), im Browser geprüft. iPhone: Bildschirm `quest/[id]` (Aktionsmenü, Kalender, langes Drücken), typgeprüft |
+| Rücknahme abgehakter Quests + Tagesabschluss | FERTIG (lokal) / IN ARBEIT (Cloud) | ADR-17. Engine-, DB- (PGlite) und Store-Tests grün; Desktop im Browser: vorgemerkt → Rücknahme → Abschluss-Übersicht mit Level-up. Migration `20261101000000_day_settlement.sql` **noch nicht eingespielt** |
 | Externe Integrationen | GEPLANT | Google Calendar/Strava kostenlos, aber OAuth-Einrichtung durch den Nutzer nötig; Apple Health nur mit nativer App |
 
 Ursprünglicher Umfang:
 Hauptquartier, Avatar, Storysystem, Saison-Events, Habit Garden, Fokus-Dungeons, Animationen, externe Integrationen (Google/Outlook/Apple Calendar, Gmail, Strava, Garmin, Apple Health, WhatsApp Business API). Keine Integration gilt als fertig, bevor sie live getestet wurde.
 
 ## Sitzungsprotokoll
+- **2026-10-28:** Spieltag ab 04:00, Vorlage „Alltag & Training“ (54 Quests, Start Mi 04:00), Quest-Editor für beliebige Tage, Rücknahme mit Tagesabschluss (ADR-17). 103 Tests grün (core 61, database 26, api 11, functions 5).
 - **2026-10-27, Sitzung 1 (Fortsetzung):** Supabase-Projekt verknüpft und migriert, Windows-Installer gebaut, KI bewusst zurückgestellt (keine API-Kosten). Phase 2 gestartet: Expo-App mit allen Kernbildschirmen, Edge Functions deployt, Desktop auf React 19 gehoben, Selektoren nach `packages/api` verschoben. 47 Tests grün.
 - **2026-10-27, Sitzung 1:** Monorepo, Kernlogik, Schema/RLS/RPCs, API-Schicht, Desktop-UI, Edge Functions, Doku. 46 automatisierte Tests grün (core 23, database 14, api 4, functions 5). Desktop im Browser end-to-end geprüft.

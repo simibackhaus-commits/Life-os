@@ -9,6 +9,7 @@ import {
   unlockSkill,
   simpleJudge,
   uncompleteInstance,
+  settleDays,
   validateVerdict,
   RULEBOOK_VERSION,
   ShopItemDraftSchema,
@@ -43,6 +44,8 @@ import {
   type Snapshot,
   type SyncState,
 } from "./types.ts";
+
+export const DAY_CLOSED_MESSAGE = "Dieser Tag ist bereits abgeschlossen – Rücknahme nicht mehr möglich.";
 
 export interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -139,9 +142,16 @@ export class LocalStore implements DataStore {
   }
 
   async uncomplete(instanceId: string) {
-    const r = uncompleteInstance(this.snap, { eventId: this.uuid(), instanceId, now: this.now().toISOString() });
+    const r = uncompleteInstance(this.snap, { instanceId, now: this.now().toISOString() });
+    if (r.reason === "day_closed") throw new Error(DAY_CLOSED_MESSAGE);
     if (r.applied) this.commit({ ...this.snap, ...r.state });
     return r.applied;
+  }
+
+  async settleDays() {
+    const { state, settlements } = settleDays(this.snap, localToday(this.now()), this.now().toISOString());
+    if (settlements.length) this.commit({ ...this.snap, ...state });
+    return settlements;
   }
 
   async updateCharacter(patch: { name?: string; className?: string; avatar?: string; title?: string }) {

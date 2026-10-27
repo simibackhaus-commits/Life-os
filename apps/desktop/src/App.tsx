@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { LevelUpOverlay, Toasts } from "@/components/game";
+import { LevelUpOverlay, SettlementOverlay, Toasts } from "@/components/game";
 import { RightPanel, Sidebar, type Page } from "@/components/layout";
 import { QuickAdd } from "@/components/QuickAdd";
 import { createCloudStore, createLocalStore, supabase } from "@/lib/store";
@@ -61,6 +61,7 @@ function Shell() {
       <RightPanel onQuickAdd={() => setQuickAdd(true)} goCourt={() => setPage("court")} />
       <QuickAdd open={quickAdd} onOpenChange={setQuickAdd} />
       <LevelUpOverlay />
+      <SettlementOverlay />
       <Toasts />
     </div>
   );

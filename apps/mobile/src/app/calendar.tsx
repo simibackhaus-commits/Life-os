@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { addDays, QUEST_TYPE_LABELS } from "@life-os/core";
@@ -60,7 +61,7 @@ export default function Calendar() {
         ) : (
           <View style={{ gap: 8 }}>
             {items.map((i) => (
-              <View key={i.quest.id + i.key} style={[s.row, { justifyContent: "space-between", paddingVertical: 6, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+              <Pressable key={i.quest.id + i.key} onPress={() => router.push({ pathname: "/quest/[id]", params: { id: i.quest.id } })} style={[s.row, { justifyContent: "space-between", paddingVertical: 6, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={s.text}>{i.quest.title}</Text>
                   <View style={s.row}>
@@ -71,7 +72,7 @@ export default function Calendar() {
                 <Text style={{ color: i.status === "erledigt" ? colors.success : selected < today ? colors.danger : colors.muted, fontSize: 12 }}>
                   {selected < today && i.status === "offen" ? "verpasst" : i.status}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}

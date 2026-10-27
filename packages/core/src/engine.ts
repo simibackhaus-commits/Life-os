@@ -2,7 +2,8 @@ import { consequenceDeltas, type Consequence } from "./court.ts";
 import { levelFromXp } from "./leveling.ts";
 import { ONCE_KEY } from "./recurrence.ts";
 import { computeReward, type Reward } from "./rewards.ts";
-import type { Attribute, Character, GameEvent, Quest, QuestInstance } from "./schemas.ts";
+import { gameDateOf } from "./dates.ts";
+import { isPending, type Attribute, type Character, type GameEvent, type Quest, type QuestInstance } from "./schemas.ts";
 import { checkPurchase, type PurchaseResult, type ShopItem } from "./shop.ts";
 import { canUnlock, type UnlockCheck } from "./skills.ts";
 
@@ -36,7 +37,7 @@ export interface CompletionInput {
 }
 
 export type CompletionResult =
-  | { applied: true; reward: Reward; levelBefore: number; levelAfter: number }
+  | { applied: true; reward: Reward; levelBefore: number; levelAfter: number; pending?: boolean }
   | { applied: false; reason: "duplicate_event" | "already_completed" | "quest_not_found" | "quest_inactive" | "quest_locked" };
 
 function addAttributeXp(
@@ -70,9 +71,8 @@ export function completeInstance(state: GameState, input: CompletionInput): { st
   if (existing?.status === "erledigt") return { state, result: { applied: false, reason: "already_completed" } };
 
   const reward = computeReward(quest, new Set(state.skills ?? []));
-  const levelBefore = levelFromXp(state.character.totalXp).level;
-  const character = applyDeltas(state.character, reward.xp, reward.coins, reward.attributeXp);
-  const levelAfter = levelFromXp(character.totalXp).level;
+  // Belohnung wird nur vorgemerkt – gebucht wird beim Tagesabschluss (settleDays).
+  const level = levelFromXp(state.character.totalXp).level;
 
   const instance: QuestInstance = {
     id: existing?.id ?? input.instanceId,
@@ -92,6 +92,8 @@ export function completeInstance(state: GameState, input: CompletionInput): { st
     refId: instance.id,
     note: quest.title,
     createdAt: input.now,
+    gameDay: gameDateOf(input.now),
+    settledAt: null,
   };
 
   const quests =
@@ -101,50 +103,83 @@ export function completeInstance(state: GameState, input: CompletionInput): { st
 
   return {
     state: {
-      character,
+      ...state,
       quests,
       instances: existing ? state.instances.map((i) => (i.id === existing.id ? instance : i)) : [...state.instances, instance],
       events: [...state.events, event],
     },
-    result: { applied: true, reward, levelBefore, levelAfter },
+    result: { applied: true, reward, levelBefore: level, levelAfter: level, pending: true },
   };
 }
 
-/** Macht einen Abschluss rückgängig (z. B. versehentlich abgehakt). Gegenbuchung statt Löschen. */
+/**
+ * Nimmt einen Abschluss zurück. Solange der Tag nicht abgeschlossen ist, wird die vorgemerkte
+ * Belohnung einfach verworfen. Nach dem Tagesabschluss ist der Tag geschlossen.
+ */
 export function uncompleteInstance(
   state: GameState,
-  input: { eventId: string; instanceId: string; now: string },
-): { state: GameState; applied: boolean } {
-  if (state.events.some((e) => e.id === input.eventId)) return { state, applied: false };
+  input: { instanceId: string; now: string },
+): { state: GameState; applied: boolean; reason?: "not_completed" | "day_closed" } {
   const inst = state.instances.find((i) => i.id === input.instanceId);
-  if (!inst || inst.status !== "erledigt" || !inst.eventId) return { state, applied: false };
+  if (!inst || inst.status !== "erledigt" || !inst.eventId) return { state, applied: false, reason: "not_completed" };
   const original = state.events.find((e) => e.id === inst.eventId);
-  if (!original) return { state, applied: false };
-
-  const negAttr = Object.fromEntries(Object.entries(original.attributeXp).map(([k, v]) => [k, -v]));
-  const event: GameEvent = {
-    id: input.eventId,
-    kind: "quest_uncompleted",
-    xpDelta: -original.xpDelta,
-    coinDelta: -original.coinDelta,
-    attributeXp: negAttr,
-    refId: inst.id,
-    note: original.note,
-    createdAt: input.now,
-  };
+  if (original && !isPending(original)) return { state, applied: false, reason: "day_closed" };
   return {
     applied: true,
     state: {
-      character: applyDeltas(state.character, event.xpDelta, event.coinDelta, negAttr),
+      ...state,
       quests: state.quests.map((q) =>
-        q.id === inst.questId && inst.occurrenceKey === ONCE_KEY ? { ...q, status: "aktiv" as const, progress: 0 } : q,
+        q.id === inst.questId && inst.occurrenceKey === ONCE_KEY ? { ...q, status: "aktiv" as const, progress: 0, updatedAt: input.now } : q,
       ),
-      instances: state.instances.map((i) =>
-        i.id === inst.id ? { ...i, status: "offen" as const, completedAt: null, eventId: null } : i,
-      ),
-      events: [...state.events, event],
+      instances: state.instances.map((i) => (i.id === inst.id ? { ...i, status: "offen" as const, completedAt: null, eventId: null } : i)),
+      events: state.events.filter((e) => e.id !== inst.eventId),
     },
   };
+}
+
+export interface DaySettlement {
+  day: string;
+  xp: number;
+  coins: number;
+  completions: number;
+  levelBefore: number;
+  levelAfter: number;
+}
+
+/**
+ * Tagesabschluss: bucht alle vorgemerkten Belohnungen von Spieltagen vor `today`.
+ * Spiegel von public.settle_days() in der Migration.
+ */
+export function settleDays(state: GameState, today: string, now: string): { state: GameState; settlements: DaySettlement[] } {
+  const due = state.events.filter((e) => isPending(e) && (e.gameDay ?? gameDateOf(e.createdAt)) < today);
+  if (due.length === 0) return { state, settlements: [] };
+  const days = [...new Set(due.map((e) => e.gameDay ?? gameDateOf(e.createdAt)))].sort();
+  let character = state.character;
+  const settlements: DaySettlement[] = [];
+  for (const day of days) {
+    const evs = due.filter((e) => (e.gameDay ?? gameDateOf(e.createdAt)) === day);
+    const levelBefore = levelFromXp(character.totalXp).level;
+    for (const ev of evs) character = applyDeltas(character, ev.xpDelta, ev.coinDelta, ev.attributeXp);
+    settlements.push({
+      day,
+      xp: evs.reduce((s, ev) => s + ev.xpDelta, 0),
+      coins: evs.reduce((s, ev) => s + ev.coinDelta, 0),
+      completions: evs.filter((ev) => ev.kind === "quest_completed").length,
+      levelBefore,
+      levelAfter: levelFromXp(character.totalXp).level,
+    });
+  }
+  const ids = new Set(due.map((e) => e.id));
+  return {
+    state: { ...state, character, events: state.events.map((e) => (ids.has(e.id) ? { ...e, settledAt: now } : e)) },
+    settlements,
+  };
+}
+
+/** Summe der vorgemerkten Belohnungen (noch nicht gebucht). */
+export function pendingRewards(events: GameEvent[]) {
+  const p = events.filter(isPending);
+  return { xp: p.reduce((s, e) => s + e.xpDelta, 0), coins: p.reduce((s, e) => s + e.coinDelta, 0), count: p.length };
 }
 
 /** Kauf im Belohnungsshop: Coins abziehen, Ereignis buchen. Idempotent über die Event-ID. */
@@ -218,6 +253,7 @@ export function completeFocus(
 ): { state: GameState; applied: boolean } {
   if (state.events.some((ev) => ev.id === input.eventId)) return { state, applied: false };
   const attr = { [input.attribute]: input.xp } as Partial<Record<Attribute, number>>;
-  const event: GameEvent = { id: input.eventId, kind: "focus_completed", xpDelta: input.xp, coinDelta: input.coins, attributeXp: attr, refId: null, note: input.title, createdAt: input.now };
-  return { applied: true, state: { ...state, character: applyDeltas(state.character, input.xp, input.coins, attr), events: [...state.events, event] } };
+  const event: GameEvent = { id: input.eventId, kind: "focus_completed", xpDelta: input.xp, coinDelta: input.coins, attributeXp: attr, refId: null, note: input.title, createdAt: input.now, gameDay: gameDateOf(input.now), settledAt: null };
+  // Wie Quests: vorgemerkt bis zum Tagesabschluss
+  return { applied: true, state: { ...state, events: [...state.events, event] } };
 }

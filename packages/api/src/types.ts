@@ -3,6 +3,7 @@ import type {
   Consequence,
   Excuse,
   GameState,
+  DaySettlement,
   FocusSession,
   FocusStartInput,
   FocusFinishResult,
@@ -109,7 +110,10 @@ export interface DataStore {
   createQuest(draft: QuestDraftInput): Promise<Quest>;
   updateQuest(id: string, patch: QuestPatch): Promise<void>;
   completeOccurrence(input: { questId: string; occurrenceKey: string; dueAt: string | null }): Promise<CompletionOutcome>;
+  /** Nimmt einen Abschluss zurück – nur bis zum Tagesabschluss möglich. */
   uncomplete(instanceId: string): Promise<boolean>;
+  /** Bucht vorgemerkte Belohnungen vergangener Spieltage (Tagesabschluss). */
+  settleDays(): Promise<DaySettlement[]>;
   updateCharacter(patch: { name?: string; className?: string; avatar?: string; title?: string }): Promise<void>;
 
   openCase(input: { questId: string; occurrenceKey: string; charge: string; questXp: number; questCoins: number }): Promise<CourtCase>;

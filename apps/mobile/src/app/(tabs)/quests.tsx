@@ -19,7 +19,7 @@ export default function Quests() {
   const [selected, setSelected] = useState<Quest | null>(null);
 
   function actions(q: Quest): SheetOption[] {
-    const opts: SheetOption[] = [];
+    const opts: SheetOption[] = [{ label: "✏️ Bearbeiten (Tage, Zeiten, Start …)", onPress: () => router.push({ pathname: "/quest/[id]", params: { id: q.id } }) }];
     const locked = isQuestLocked(snap.quests, q);
     const hp = bossHp(q);
     if (hp && q.status === "aktiv" && !locked && q.subtasks.some((st) => !st.done)) {

@@ -2,7 +2,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as Haptics from "expo-haptics";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
-import { localToday } from "@life-os/core";
+import { localToday, type DaySettlement } from "@life-os/core";
 import { CloudStore, type CompletionOutcome, type DataStore, type Snapshot, type SyncState } from "@life-os/api";
 import { colors, s } from "@/lib/theme";
 
@@ -20,6 +20,8 @@ interface GameCtx {
   toast: Toast | null;
   levelUp: number | null;
   dismissLevelUp(): void;
+  settlement: DaySettlement[] | null;
+  dismissSettlement(): void;
   notify(kind: Toast["kind"], text: string): void;
   run<T>(fn: (s: DataStore) => Promise<T>): Promise<T | undefined>;
   complete(input: { questId: string; occurrenceKey: string; dueAt: string | null }): Promise<CompletionOutcome | undefined>;
@@ -44,6 +46,7 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
   const [sync, setSync] = useState<{ state: SyncState; pending: number }>({ state: "lokal", pending: 0 });
   const [toast, setToast] = useState<Toast | null>(null);
   const [levelUp, setLevelUp] = useState<number | null>(null);
+  const [settlement, setSettlement] = useState<DaySettlement[] | null>(null);
   const [today, setToday] = useState(localToday());
   const id = useRef(0);
 
@@ -61,6 +64,18 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
       setLoadError(e instanceof Error ? e.message : String(e));
     }
   }, [store]);
+
+  // Tagesabschluss beim Start und bei neuem Spieltag (04:00)
+  useEffect(() => {
+    void store
+      .settleDays()
+      .then((list) => {
+        if (list.length === 0) return;
+        haptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+        setSettlement(list);
+      })
+      .catch(() => {});
+  }, [store, today]);
 
   useEffect(() => {
     void reload();
@@ -99,7 +114,7 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
       if (!r) return r;
       if (r.applied) {
         haptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
-        notify("xp", `+${r.reward.xp} XP · +${r.reward.coins} Coins${r.queued ? " (offline gespeichert)" : ""}`);
+        notify("xp", `+${r.reward.xp} XP · +${r.reward.coins} Coins vorgemerkt${r.queued ? " (offline gespeichert)" : ""}`);
         if (r.levelAfter > r.levelBefore) setLevelUp(r.levelAfter);
       } else if (r.reason === "already_completed") notify("info", "Bereits erledigt.");
       return r;
@@ -108,8 +123,8 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
   );
 
   const value = useMemo<GameCtx | null>(
-    () => snap && { store, snap, today, sync, toast, levelUp, dismissLevelUp: () => setLevelUp(null), notify, run, complete, reload },
-    [store, snap, today, sync, toast, levelUp, notify, run, complete, reload],
+    () => snap && { store, snap, today, sync, toast, levelUp, dismissLevelUp: () => setLevelUp(null), settlement, dismissSettlement: () => setSettlement(null), notify, run, complete, reload },
+    [store, snap, today, sync, toast, levelUp, settlement, notify, run, complete, reload],
   );
 
   if (loadError && !snap)

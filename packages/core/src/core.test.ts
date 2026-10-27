@@ -13,6 +13,8 @@ import {
   skillPoints,
   evaluateAchievements,
   gameDateOf,
+  pendingRewards,
+  settleDays,
   localToday,
   occurrenceDueAt,
   parseQuickAdd,
@@ -125,16 +127,17 @@ function baseState(): GameState {
   };
 }
 
-describe("Engine – idempotente Abschlüsse", () => {
-  const input = { eventId: uuid(100), instanceId: uuid(200), questId: uuid(1), occurrenceKey: "2026-10-27T07:00", dueAt: null, now: "2026-10-27T07:05:00Z" };
+describe("Engine – idempotente Abschlüsse mit Tagesabschluss", () => {
+  const input = { eventId: uuid(100), instanceId: uuid(200), questId: uuid(1), occurrenceKey: "2026-10-27T07:00", dueAt: null, now: new Date(2026, 9, 27, 7, 5).toISOString() };
 
-  it("vergibt XP und Coins genau einmal pro Event", () => {
+  it("merkt XP und Coins genau einmal pro Event vor", () => {
     const a = completeInstance(baseState(), input);
     expect(a.result.applied).toBe(true);
-    expect(a.state.character.totalXp).toBe(5);
+    expect(a.state.character.totalXp).toBe(0); // noch nicht gebucht
+    expect(pendingRewards(a.state.events)).toEqual({ xp: 5, coins: 1, count: 1 });
     const b = completeInstance(a.state, input);
     expect(b.result).toEqual({ applied: false, reason: "duplicate_event" });
-    expect(b.state.character.totalXp).toBe(5);
+    expect(pendingRewards(b.state.events).xp).toBe(5);
   });
 
   it("verhindert doppelten Abschluss derselben Instanz mit neuer Event-ID", () => {
@@ -147,16 +150,33 @@ describe("Engine – idempotente Abschlüsse", () => {
     const a = completeInstance(baseState(), input);
     const b = completeInstance(a.state, { ...input, eventId: uuid(101), instanceId: uuid(201), occurrenceKey: "2026-10-27T21:00" });
     expect(b.result.applied).toBe(true);
-    expect(b.state.character.totalXp).toBe(10);
+    expect(pendingRewards(b.state.events).xp).toBe(10);
   });
 
-  it("Rückgängig bucht gegen", () => {
+  it("Rückgängig vor dem Tagesabschluss verwirft die Vormerkung", () => {
     const a = completeInstance(baseState(), input);
-    const u = uncompleteInstance(a.state, { eventId: uuid(102), instanceId: uuid(200), now: input.now });
+    const u = uncompleteInstance(a.state, { instanceId: uuid(200), now: input.now });
     expect(u.applied).toBe(true);
-    expect(u.state.character.totalXp).toBe(0);
-    expect(u.state.character.coins).toBe(0);
-    expect(u.state.events).toHaveLength(2);
+    expect(u.state.events).toHaveLength(0);
+    expect(u.state.instances[0]!.status).toBe("offen");
+  });
+
+  it("Tagesabschluss bucht nur vergangene Spieltage, danach ist der Tag geschlossen", () => {
+    const a = completeInstance(baseState(), input);
+    const same = settleDays(a.state, "2026-10-27", "x");
+    expect(same.settlements).toEqual([]); // heute wird noch nicht abgerechnet
+    const next = settleDays(a.state, "2026-10-28", "2026-10-28T05:00:00Z");
+    expect(next.settlements).toEqual([{ day: "2026-10-27", xp: 5, coins: 1, completions: 1, levelBefore: 1, levelAfter: 1 }]);
+    expect(next.state.character.totalXp).toBe(5);
+    expect(next.state.character.coins).toBe(1);
+    expect(pendingRewards(next.state.events).count).toBe(0);
+    expect(settleDays(next.state, "2026-10-28", "y").settlements).toEqual([]); // idempotent
+    expect(uncompleteInstance(next.state, { instanceId: uuid(200), now: "z" })).toMatchObject({ applied: false, reason: "day_closed" });
+  });
+
+  it("Abschluss kurz nach Mitternacht zählt zum Vortag", () => {
+    const late = completeInstance(baseState(), { ...input, now: new Date(2026, 9, 28, 1, 30).toISOString() });
+    expect(late.state.events[0]!.gameDay).toBe("2026-10-27");
   });
 });
 
