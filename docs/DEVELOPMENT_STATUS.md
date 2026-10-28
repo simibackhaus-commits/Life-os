@@ -1,6 +1,6 @@
 # Entwicklungsstatus – Abgleich mit dem Masterprompt (Singleplayer · Windows + iPhone · ohne Pflicht-API-Kosten)
 
-Stand: 2026-10-28 · Status: **FERTIG** (implementiert und getestet) · **IN ARBEIT** · **GEPLANT** · **BLOCKIERT**
+Stand: 2026-10-28 (Mobile Edition ergänzt) · Status: **FERTIG** (implementiert und getestet) · **IN ARBEIT** · **GEPLANT** · **BLOCKIERT**
 Details und Nachweise: [ROADMAP.md](ROADMAP.md) · Entscheidungen: [ARCHITEKTUR.md](ARCHITEKTUR.md)
 
 ## Hardware & KI-Modell (geprüft 2026-10-28)
@@ -19,6 +19,22 @@ Details und Nachweise: [ROADMAP.md](ROADMAP.md) · Entscheidungen: [ARCHITEKTUR.
 | Gemini Free Tier | 0 € | optional, Daten dürfen von Google genutzt werden, Kontingente begrenzt |
 | Anthropic / OpenAI | kostenpflichtig | standardmäßig aus, in der App nicht wählbar (Edge Function bleibt als spätere Option) |
 | Apple Developer Program | 99 €/Jahr | nur für eine echte native iOS-App (App Store/TestFlight); bis dahin PWA bzw. Expo Go |
+
+## Mobile Edition (eigenständige iPhone-App, KI auf dem Gerät) – Stand 2026-10-28
+Zielgerät laut Nutzer: iPhone 13/14/15 (ohne Apple Intelligence), iOS 26, kein Mac, kostenlose 7-Tage-Signatur. Architektur: ADR-19, Build: [IPHONE_BUILD.md](IPHONE_BUILD.md).
+
+| Baustein | Status |
+|---|---|
+| Spielkern offline auf dem iPhone (Quests, XP/Coins, Tagesabschluss, Gericht mit Regelrichter, Rat, Module) | FERTIG (TypeScript, 127 Tests) |
+| „Ohne Konto spielen“ – Cloud/Sync freiwillig | FERTIG (Web-Vorschau geprüft) |
+| Geräte-KI: Provider, Modellkatalog Qwen3 0.6B/1.7B/4B, Empfehlung nach RAM, Kontextkürzung | FERTIG (Unit-Tests) |
+| llama.rn-Anbindung, Modellmanager (Download/Pause/Fortsetzen/Löschen, Speicher), KI-Zentrale mit Leistungstest | IN ARBEIT – typgeprüft, **noch nie auf einem iPhone gelaufen** |
+| KI-Chat mit Rollen + Ratssitzung, KI-Gericht auf dem iPhone | IN ARBEIT – Oberfläche in Web-Vorschau geprüft, KI nur im nativen Build |
+| Cloud-Build (GitHub Actions → unsignierte IPA) | IN ARBEIT – Workflow geschrieben, noch nie gelaufen (braucht GitHub-Repo des Nutzers) |
+| Installation per SideStore | GEPLANT – Einrichtung durch den Nutzer |
+| Messung auf dem Zielgerät (Ladezeit, Tokens/s, RAM, Wärme, Akku) | BLOCKIERT bis zur ersten Installation |
+| SQLite statt JSON-Speicher, Verschlüsselung, KI-Gedächtnis mit Volltextsuche | GEPLANT |
+| Widgets, Live Activities, App Intents, HealthKit | GEPLANT (brauchen native Erweiterungen im Build) |
 
 ## Phase 1 – Spielbarer Windows-Kern
 | Baustein | Status |

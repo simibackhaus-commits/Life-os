@@ -74,5 +74,15 @@ Vorgabe des Nutzers: KI ohne laufende API-Kosten, alle Kernfunktionen auch ohne 
 - KI-Ausgaben sind strukturiertes JSON und werden mit Zod/Regelbasis geprüft: Quest-Entwürfe gehen in die bearbeitbare Vorschau; Urteile durchlaufen `validateVerdict` (max. 2 Korrekturrunden, sonst Regelrichter). Ist die KI nicht erreichbar, bleibt ein Verfahren offen und kann fortgesetzt oder vom Regelrichter entschieden werden.
 - Cloud-Modus: Gerichtsschritte und Urteile über `court_record`/`court_decide` (SECURITY DEFINER). Der Server prüft Eigentum, Status, Schutzgründe, Berufung-nur-zugunsten und die Urteilsgrenzen (`verdict_within_limits`, Paritätstest zu `VERDICT_LIMITS`). Da Urteile nur Abzüge erzeugen, kann ein manipulierter Client sich höchstens selbst schonen – im Singleplayer akzeptiert.
 
+## ADR-19 – Native iPhone-App mit Geräte-KI: Expo/React Native + llama.rn statt Swift
+Vorgabe (Mobile Edition): eigenständige native iPhone-App, alles offline, KI auf dem Gerät, ohne PC und ohne Kosten. Zielgerät: iPhone 13/14/15 mit iOS 26, kein Mac, kostenlose Signierung.
+- **Apple Foundation Models scheidet aus:** braucht Apple Intelligence (ab iPhone 15 Pro). Damit entfällt der Hauptvorteil von Swift.
+- **Gewählt: Expo (CNG/Prebuild) + `llama.rn` 0.12.9** (llama.cpp mit Metal, JSON-Schema → Grammatik, Expo-Config-Plugin). Spielregeln, Gericht, Tagesabschluss und KI-Logik bleiben die getesteten TypeScript-Pakete (`core`, `api`, `ai`); nur die Laufzeit ist neu (`apps/mobile/src/lib/llm.ios.ts`). Swift-Code ließe sich unter Windows nicht einmal kompilieren – jede Änderung bräuchte einen Cloud-Build.
+- **Modelle:** Qwen3 0.6B / 1.7B / 4B (Q4_K_M, Apache-2.0) aus Hugging Face; Profile Eco/Balanced/Intelligence; Empfehlung nach Geräte-RAM (`adviseModels`). Download fortsetzbar, Prüfung über exakte Dateigröße, löschbar. Kein Modell im App-Paket – die App startet ohne.
+- **Provider:** `OnDeviceProvider` hinter derselben `AiProvider`-Schnittstelle; lädt das Modell beim ersten Aufruf, kürzt Verläufe auf das Kontextfenster (4096 Token), schaltet den Qwen3-Denkmodus ab. KI-Ausgaben laufen weiter durch Zod/Regelbasis.
+- **Speicher:** Berechtigungen `increased-memory-limit` und `extended-virtual-addressing` (abschaltbar, falls die kostenlose Signierung sie ablehnt).
+- **Build:** GitHub Actions (`.github/workflows/ios-ipa.yml`): Tests (Linux) → `expo prebuild` + `xcodebuild archive` ohne Signatur (macOS) → Berechtigungen per `ldid` eintragen → `.ipa`. Installation per SideStore (7-Tage-Signatur). Anleitung: `docs/IPHONE_BUILD.md`.
+- **Lokal zuerst:** „Ohne Konto spielen“ auf dem Anmeldebildschirm; Konto/Sync ist freiwillig. Vorhandene Konten laufen unverändert weiter.
+
 ## ADR-10 – Datenbanktests ohne Docker
 Docker ist auf dem Entwicklungsrechner nicht immer aktiv. → Migrationen werden in Vitest gegen PGlite (Postgres als WASM) mit minimalem `auth`-Stub ausgeführt: Regelparität, Idempotenz, RLS, Spaltenrechte, Gerichtsgrenzen, Accountlöschung. Ersetzt keinen Test gegen echtes Supabase (Realtime, Auth, PostgREST) – der steht in der Roadmap.

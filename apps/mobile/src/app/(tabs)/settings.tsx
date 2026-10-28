@@ -4,7 +4,7 @@ import { Platform, ScrollView, Share, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ActionSheet, Button, Card } from "@/components/ui";
 import { supabase } from "@/lib/backend";
-import { biometricAvailable, getPref, requestNotificationPermission, rescheduleReminders, setPref } from "@/lib/device";
+import { biometricAvailable, getPref, requestNotificationPermission, rescheduleReminders, setOfflineMode, setPref } from "@/lib/device";
 import { colors, s } from "@/lib/theme";
 import { useGame } from "@/state/GameProvider";
 
@@ -44,9 +44,23 @@ export default function Settings() {
             Status: {sync.state}
             {sync.pending ? ` · ${sync.pending} Aktionen warten auf Netz` : ""}
           </Text>
-          {supabase ? (
+          {supabase && store.mode === "cloud" ? (
             <View style={{ marginTop: 12 }}>
               <Button label="Abmelden" variant="outline" icon="log-out" onPress={() => void supabase!.auth.signOut()} />
+            </View>
+          ) : null}
+          {supabase && store.mode === "local" ? (
+            <View style={{ marginTop: 12, gap: 6 }}>
+              <Text style={s.small}>Konto ist freiwillig. Achtung: Der lokale Spielstand wird beim Anmelden nicht automatisch übertragen – vorher exportieren.</Text>
+              <Button
+                label="Mit Konto anmelden (Sync)"
+                variant="outline"
+                icon="cloud"
+                onPress={async () => {
+                  await setOfflineMode(false);
+                  notify("info", "App neu starten, um dich anzumelden.");
+                }}
+              />
             </View>
           ) : null}
         </Card>
@@ -115,6 +129,13 @@ export default function Settings() {
           options={[{ label: "Endgültig löschen", destructive: true, onPress: () => void run((st) => st.deleteAllData()) }]}
           onClose={() => setConfirmDelete(false)}
         />
+
+        <Card title="KI (offline auf dem iPhone)">
+          <View style={{ gap: 8 }}>
+            <Button label="KI-Zentrale: Modelle & Leistung" icon="hardware-chip" variant="outline" onPress={() => router.push("/ai")} />
+            <Button label="KI-Chat & Rat" icon="chatbubbles" variant="outline" onPress={() => router.push("/chat")} />
+          </View>
+        </Card>
 
         <Card title="Spiel">
           <View style={{ gap: 8 }}>

@@ -7,6 +7,16 @@ import { todaysItems, type Snapshot } from "@life-os/api";
 
 const PREF_REMINDERS = "life-os/pref/reminders";
 const PREF_BIOMETRIC = "life-os/pref/biometric";
+const PREF_OFFLINE = "life-os/pref/offline";
+
+/** „Ohne Konto spielen“ – Spielstand nur auf diesem Gerät. */
+export async function getOfflineMode(): Promise<boolean> {
+  return (await AsyncStorage.getItem(PREF_OFFLINE)) === "1";
+}
+
+export async function setOfflineMode(on: boolean) {
+  await AsyncStorage.setItem(PREF_OFFLINE, on ? "1" : "0");
+}
 /** iOS erlaubt höchstens 64 geplante Benachrichtigungen pro App. */
 const MAX_SCHEDULED = 40;
 

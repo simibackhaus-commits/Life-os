@@ -6,7 +6,10 @@ import { DEFAULT_GEMINI_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, GeminiP
  * damit ein Gemini-Schlüssel das Gerät nicht verlässt.
  */
 export const AiSettingsSchema = z.object({
-  provider: z.enum(["aus", "ollama", "gemini"]).default("aus"),
+  /** geraet = Modell läuft direkt auf dem iPhone (llama.cpp), komplett offline */
+  provider: z.enum(["aus", "geraet", "ollama", "gemini"]).default("aus"),
+  /** Gewähltes Modell für die Geräte-KI (siehe MODEL_CATALOG) */
+  deviceModel: z.string().default("qwen3-1.7b"),
   ollamaUrl: z.string().url().default(DEFAULT_OLLAMA_URL),
   ollamaModel: z.string().min(1).default(DEFAULT_OLLAMA_MODEL),
   geminiKey: z.string().default(""),
@@ -25,7 +28,10 @@ export function parseAiSettings(raw: unknown): AiSettings {
   return r.success ? r.data : DEFAULT_AI_SETTINGS;
 }
 
-/** Erzeugt den Anbieter – oder null, wenn die KI aus ist oder eine Zustimmung fehlt. */
+/**
+ * Erzeugt den Anbieter – oder null, wenn die KI aus ist oder eine Zustimmung fehlt.
+ * Die Geräte-KI braucht die native Laufzeit und wird in der iPhone-App selbst erzeugt.
+ */
 export function createProvider(s: AiSettings, fetchFn: FetchFn): AiProvider | null {
   if (s.provider === "ollama") return new OllamaProvider(fetchFn, s.ollamaUrl, s.ollamaModel);
   if (s.provider === "gemini" && s.geminiConsent && s.geminiKey.trim()) return new GeminiProvider(fetchFn, s.geminiKey.trim(), s.geminiModel);

@@ -1,0 +1,83 @@
+# Baut die native iPhone-App (unsigniert) auf einem macOS-Runner von GitHub.
+# Ergebnis: LIFE-OS.ipa als Artefakt → mit SideStore (kostenlose Apple-ID, 7-Tage-Signatur) installieren.
+# Start: GitHub → Actions → „iPhone-App bauen“ → Run workflow (oder automatisch bei Tags v*).
+name: iPhone-App bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      memory_entitlements:
+        description: "Mehr Arbeitsspeicher für die KI anfordern (bei Signierfehler in SideStore auf 0 setzen)"
+        default: "1"
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: ios-ipa
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          RNLLAMA_SKIP_POSTINSTALL: "1"
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+
+  ipa:
+    needs: tests
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      CI: "1"
+      LIFE_OS_MEMORY_ENTITLEMENTS: ${{ github.event.inputs.memory_entitlements || '1' }}
+      # Optional: Cloud-Sync. Ohne diese Secrets startet die App rein lokal.
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Native iOS-Projekt erzeugen (Expo Prebuild + CocoaPods)
+        working-directory: apps/mobile
+        run: npx expo prebuild -p ios --clean --no-install && cd ios && pod install
+      - name: Archiv bauen (ohne Signatur)
+        working-directory: apps/mobile/ios
+        run: |
+          WS=$(ls -d *.xcworkspace | head -1)
+          SCHEME="${WS%.xcworkspace}"
+          echo "Workspace: $WS, Schema: $SCHEME"
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/LifeOS.xcarchive" archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -n 60
+          echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+      - name: IPA packen (Berechtigungen eintragen, damit SideStore sie übernimmt)
+        working-directory: apps/mobile/ios
+        run: |
+          brew install ldid
+          APP=$(ls -d "$RUNNER_TEMP"/LifeOS.xcarchive/Products/Applications/*.app | head -1)
+          BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+          ENT=$(ls "$SCHEME"/*.entitlements 2>/dev/null | head -1 || true)
+          if [ -n "$ENT" ] && [ "$LIFE_OS_MEMORY_ENTITLEMENTS" = "1" ]; then ldid -S"$ENT" "$BIN"; else ldid -S "$BIN"; fi
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          cd "$RUNNER_TEMP/ipa" && zip -qry LIFE-OS.ipa Payload
+          ls -lh LIFE-OS.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LIFE-OS-ipa
+          path: ${{ runner.temp }}/ipa/LIFE-OS.ipa
+          retention-days: 30

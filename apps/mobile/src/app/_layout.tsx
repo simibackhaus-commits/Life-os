@@ -8,7 +8,7 @@ import type { DataStore } from "@life-os/api";
 import { LevelUp, SettlementModal, Toast } from "@/components/ui";
 import { LockScreen, LoginScreen } from "@/components/gates";
 import { createCloudStore, createLocalStore, supabase } from "@/lib/backend";
-import { getPref, rescheduleReminders } from "@/lib/device";
+import { getOfflineMode, getPref, rescheduleReminders, setOfflineMode } from "@/lib/device";
 import { colors, s } from "@/lib/theme";
 import { GameProvider, useGame } from "@/state/GameProvider";
 
@@ -49,6 +49,8 @@ function Shell({ store }: { store: DataStore }) {
             ["career", "Karriere"],
             ["fitness", "Fitness"],
             ["finance", "Finanzen"],
+            ["ai", "KI-Zentrale"],
+            ["chat", "KI-Chat & Rat"],
           ] as const
         ).map(([name, title]) => (
           <Stack.Screen key={name} name={name} options={{ headerShown: true, title, headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.gold }} />
@@ -70,9 +72,12 @@ function App() {
   const [session, setSession] = useState<Session | null | undefined>(supabase ? undefined : null);
   const [store, setStore] = useState<DataStore | null>(null);
   const [locked, setLocked] = useState<boolean | null>(null);
+  // Ohne Konto spielen: alles bleibt lokal auf dem iPhone, Konto/Sync ist freiwillig.
+  const [offline, setOffline] = useState<boolean | null>(null);
 
   useEffect(() => {
     void getPref("biometric").then(setLocked);
+    void getOfflineMode().then(setOffline);
     if (!supabase) {
       void createLocalStore().then(setStore);
       return;
@@ -84,14 +89,23 @@ function App() {
 
   const userId = session?.user.id;
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || offline === null) return;
     setStore(null);
     if (userId) void createCloudStore(userId).then(setStore);
-  }, [userId]);
+    else if (offline) void createLocalStore().then(setStore);
+  }, [userId, offline]);
 
-  if (locked === null || session === undefined) return <Loading />;
+  if (locked === null || session === undefined || offline === null) return <Loading />;
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
-  if (supabase && !session) return <LoginScreen />;
+  if (supabase && !session && !offline)
+    return (
+      <LoginScreen
+        onPlayOffline={() => {
+          void setOfflineMode(true);
+          setOffline(true);
+        }}
+      />
+    );
   if (!store) return <Loading />;
   return <Shell key={userId ?? "local"} store={store} />;
 }

@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   AiUnavailableError,
   GeminiProvider,
+  MODEL_CATALOG,
+  OnDeviceProvider,
+  adviseModels,
+  estimateTokens,
+  fitToContext,
   OllamaProvider,
   aiChat,
   aiJudge,
@@ -192,5 +197,69 @@ describe("KI-Richter", () => {
 
   it("KI nicht erreichbar → Fehler, Verfahren bleibt offen", async () => {
     await expect(aiJudge(scripted(), { ...caseInput, log: [] })).rejects.toBeInstanceOf(AiUnavailableError);
+  });
+});
+
+describe("Geräte-KI (iPhone)", () => {
+  const GB = 1024 ** 3;
+  function fakeEngine(reply = '{"ok":true}') {
+    const calls: Array<{ messages: Array<{ role: string; content: string }>; jsonSchema?: unknown }> = [];
+    const e = {
+      loadedPath: null as string | null,
+      loads: 0,
+      calls,
+      async load(path: string) {
+        e.loads++;
+        e.loadedPath = path;
+      },
+      async complete(input: { messages: Array<{ role: "system" | "user" | "assistant"; content: string }>; jsonSchema?: Record<string, unknown> }) {
+        calls.push(input);
+        return { text: `<think></think>${reply}`, tokensPredicted: 12, tokensPerSecond: 18.5 };
+      },
+      async release() {
+        e.loadedPath = null;
+      },
+    };
+    return e;
+  }
+
+  it("empfiehlt je nach Arbeitsspeicher (iPhone 13: 4 GB, iPhone 14/15: 6 GB)", () => {
+    const four = adviseModels(4 * GB, 50 * GB);
+    expect(four.filter((a) => a.fits).map((a) => a.model.id)).toEqual(["qwen3-0.6b", "qwen3-1.7b"]);
+    expect(four.find((a) => a.recommended)!.model.id).toBe("qwen3-1.7b");
+    const six = adviseModels(6 * GB, 50 * GB);
+    expect(six.find((a) => a.model.id === "qwen3-4b")!.fits).toBe(true);
+    expect(six.find((a) => a.recommended)!.model.id).toBe("qwen3-1.7b");
+    const full = adviseModels(6 * GB, 0.5 * GB);
+    expect(full.find((a) => a.model.id === "qwen3-1.7b")!.fits).toBe(false);
+    expect(MODEL_CATALOG.every((m) => /^[0-9a-f]{64}$/.test(m.sha256) && m.license === "Apache-2.0")).toBe(true);
+  });
+
+  it("lädt das Modell einmal, reicht das JSON-Schema als Grammatik weiter und misst Tokens/s", async () => {
+    const e = fakeEngine();
+    const p = new OnDeviceProvider(e, MODEL_CATALOG[1]!, "/docs/m.gguf", async () => true);
+    expect(await p.generate({ system: "s", messages: [{ role: "user", content: "a" }], schema: { type: "object" } })).toBe('{"ok":true}');
+    await p.generate({ system: "s", messages: [{ role: "user", content: "b" }] });
+    expect(e.loads).toBe(1);
+    expect(e.calls[0]!.jsonSchema).toEqual({ type: "object" });
+    expect(e.calls[0]!.messages[0]!.role).toBe("system");
+    expect(p.stats.lastTokensPerSecond).toBe(18.5);
+  });
+
+  it("fehlendes Modell → verständlicher Fehler, Verlauf wird ins Kontextfenster gekürzt", async () => {
+    const p = new OnDeviceProvider(fakeEngine(), MODEL_CATALOG[0]!, "/x.gguf", async () => false);
+    await expect(p.generate({ system: "s", messages: [] })).rejects.toThrow(/nicht heruntergeladen/);
+    const long = Array.from({ length: 40 }, (_, i) => ({ role: (i % 2 ? "assistant" : "user") as "user" | "assistant", content: "x".repeat(1000) }));
+    const fitted = fitToContext({ system: "System", messages: [...long, { role: "user", content: "letzte Frage" }] }, 4096);
+    expect(fitted.at(-1)!.content).toBe("letzte Frage");
+    expect(fitted.length).toBeLessThan(long.length);
+    expect(fitted[1]!.role).toBe("user");
+    expect(fitted.reduce((n, m) => n + estimateTokens(m.content), 0)).toBeLessThanOrEqual(4096 - 800);
+  });
+
+  it("Einstellungen kennen die Geräte-KI; createProvider überlässt sie der App", () => {
+    const s = parseAiSettings({ provider: "geraet", deviceModel: "qwen3-0.6b" });
+    expect(s.provider).toBe("geraet");
+    expect(createProvider(s, fakeFetch(() => ({ status: 200, body: {} })))).toBeNull();
   });
 });

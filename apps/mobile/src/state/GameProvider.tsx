@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
 import { localToday, type DaySettlement } from "@life-os/core";
 import { CloudStore, type CompletionOutcome, type DataStore, type Snapshot, type SyncState } from "@life-os/api";
+import { useAi, type AiState } from "@/lib/ai";
 import { colors, s } from "@/lib/theme";
 
 export interface Toast {
@@ -26,6 +27,8 @@ interface GameCtx {
   run<T>(fn: (s: DataStore) => Promise<T>): Promise<T | undefined>;
   complete(input: { questId: string; occurrenceKey: string; dueAt: string | null }): Promise<CompletionOutcome | undefined>;
   reload(): Promise<void>;
+  /** KI-Einstellungen und aktiver Anbieter (Standard: Modell direkt auf dem iPhone) */
+  ai: AiState;
 }
 
 const Ctx = createContext<GameCtx | null>(null);
@@ -49,6 +52,7 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
   const [settlement, setSettlement] = useState<DaySettlement[] | null>(null);
   const [today, setToday] = useState(localToday());
   const id = useRef(0);
+  const ai = useAi(store);
 
   const notify = useCallback((kind: Toast["kind"], text: string) => {
     const t = { id: ++id.current, kind, text };
@@ -123,8 +127,8 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
   );
 
   const value = useMemo<GameCtx | null>(
-    () => snap && { store, snap, today, sync, toast, levelUp, dismissLevelUp: () => setLevelUp(null), settlement, dismissSettlement: () => setSettlement(null), notify, run, complete, reload },
-    [store, snap, today, sync, toast, levelUp, settlement, notify, run, complete, reload],
+    () => snap && { store, snap, today, sync, toast, levelUp, dismissLevelUp: () => setLevelUp(null), settlement, dismissSettlement: () => setSettlement(null), notify, run, complete, reload, ai },
+    [store, snap, today, sync, toast, levelUp, settlement, notify, run, complete, reload, ai],
   );
 
   if (loadError && !snap)

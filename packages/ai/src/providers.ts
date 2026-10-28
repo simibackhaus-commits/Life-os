@@ -31,7 +31,7 @@ export interface AiStatus {
 }
 
 export interface AiProvider {
-  readonly id: "ollama" | "gemini";
+  readonly id: "ollama" | "gemini" | "geraet";
   readonly label: string;
   /** true, wenn Daten das eigene Gerät/Netz verlassen. */
   readonly external: boolean;

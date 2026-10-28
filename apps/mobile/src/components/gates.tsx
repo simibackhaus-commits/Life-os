@@ -5,7 +5,7 @@ import { unlockWithBiometrics } from "@/lib/device";
 import { colors, s } from "@/lib/theme";
 import { Button, Card } from "./ui";
 
-export function LoginScreen() {
+export function LoginScreen({ onPlayOffline }: { onPlayOffline: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -55,6 +55,10 @@ export function LoginScreen() {
           <Button label={mode === "login" ? "Anmelden" : "Registrieren"} onPress={() => void submit()} disabled={busy || !email || password.length < 8} />
         </View>
       </Card>
+      <View style={{ marginTop: 16 }}>
+        <Button label="Ohne Konto spielen (alles lokal)" variant="outline" icon="phone-portrait" onPress={onPlayOffline} />
+        <Text style={[s.small, { textAlign: "center", marginTop: 6 }]}>Ein Konto brauchst du nur für die freiwillige Synchronisierung mit dem PC.</Text>
+      </View>
       <Pressable onPress={() => setMode(mode === "login" ? "signup" : "login")} style={{ marginTop: 16 }}>
         <Text style={{ color: colors.blue, textAlign: "center" }}>{mode === "login" ? "Noch kein Konto? Registrieren" : "Bereits registriert? Anmelden"}</Text>
       </Pressable>

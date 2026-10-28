@@ -42,13 +42,14 @@ function Choice<T extends string>({ options, value, onChange, label }: { options
 }
 
 function CaseView({ c }: { c: CourtCase }) {
-  const { snap, store, run } = useGame();
+  const { snap, store, run, ai } = useGame();
   const msgs = snap.courtMessages.filter((m) => m.caseId === c.id);
   const [plea, setPlea] = useState<Plea>("schuldig");
   const [excuse, setExcuse] = useState<Excuse>("keine");
   const [statement, setStatement] = useState("");
   const [busy, setBusy] = useState(false);
-  const open = c.status === "offen" || c.status === "verhandlung";
+  const open = c.status === "offen" || c.status === "verhandlung" || c.status === "berufung";
+  const canTalk = !!ai.provider || store.mode === "cloud";
 
   async function act(fn: () => Promise<void>) {
     setBusy(true);
@@ -108,10 +109,15 @@ function CaseView({ c }: { c: CourtCase }) {
         </View>
       ) : null}
 
-      {open && c.plea !== null && store.mode === "cloud" ? (
+      {open && c.plea !== null ? (
         <View style={{ marginTop: 12, gap: 8 }}>
-          <TextInput style={[s.input, { minHeight: 60 }]} multiline value={statement} onChangeText={setStatement} placeholder="Antwort an den Richter" placeholderTextColor={colors.muted} />
-          <Button label="Antworten" variant="violet" disabled={busy || !statement.trim()} onPress={() => void act(() => store.sendCourtMessage(c.id, statement))} />
+          {canTalk ? (
+            <>
+              <TextInput style={[s.input, { minHeight: 60 }]} multiline value={statement} onChangeText={setStatement} placeholder="Antwort an den Richter (leer = weiter verhandeln)" placeholderTextColor={colors.muted} />
+              <Button label={busy ? "Gericht berät…" : statement.trim() ? "Antworten" : "Weiter verhandeln"} variant="violet" disabled={busy} onPress={() => void act(() => store.sendCourtMessage(c.id, statement))} />
+            </>
+          ) : null}
+          <Button label="Regelrichter entscheiden lassen" variant="outline" icon="scale" disabled={busy} onPress={() => void act(() => store.ruleJudge(c.id))} />
         </View>
       ) : null}
 
