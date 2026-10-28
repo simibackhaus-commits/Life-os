@@ -4,7 +4,9 @@ import {
   PROTECTED_REASONS,
   QUEST_TYPES,
   QuestDraftSchema,
+  detectSchedule,
   rulebookText,
+  scheduleToDraft,
   simpleJudge,
   validateVerdict,
   type CaseContext,
@@ -86,14 +88,29 @@ export async function aiQuickAdd(provider: AiProvider, text: string, today: stri
     "Regeln: Wiederkehrendes → recurrence (startDate = heute, wenn nichts anderes gesagt). Einmaliges mit Termin → dueAt. „zweimal täglich“ → times mit zwei Uhrzeiten (z. B. 07:00 und 21:00).",
     "Große Ziele (z. B. Sparziel, Wettkampf) → type main oder epic, sinnvolle Teilaufgaben. Kleine Routinen → daily, trivial/leicht.",
     "mandatory nur, wenn der Spieler von Pflicht spricht oder es eine feste berufliche Pflicht ist.",
+    "Wochentage: 1=Montag, 2=Dienstag, 3=Mittwoch, 4=Donnerstag, 5=Freitag, 6=Samstag, 7=Sonntag.",
   ]);
+  // Zeitplan regelbasiert: Wochentage, Intervalle und Fristen erkennt der Parser zuverlässiger als kleine Modelle.
+  const schedule = detectSchedule(text, today);
+  const hasSchedule = Boolean(schedule.freq || schedule.date);
   let lastErrors: string[] = [];
   const messages: AiMessage[] = [{ role: "user", content: text }];
   for (let attempt = 0; attempt < 2; attempt++) {
     const out = await provider.generate({ system, messages, schema: questDraftJsonSchema as unknown as Record<string, unknown>, temperature: 0.2 });
     try {
       const r = toDraft(extractJson(out), uuid);
-      if (r.ok) return { draft: r.draft, notes: [`Erstellt von ${provider.label}. Bitte vor dem Speichern prüfen.`] };
+      if (r.ok) {
+        const draft: QuestDraft = { ...r.draft };
+        if (hasSchedule) Object.assign(draft, scheduleToDraft(schedule, today));
+        else if (draft.recurrence) draft.recurrence = { ...draft.recurrence, startDate: today };
+        if (schedule.type) draft.type = schedule.type;
+        else if (draft.recurrence && (draft.type === "daily" || draft.type === "weekly")) draft.type = draft.recurrence.freq === "daily" ? "daily" : "weekly";
+        else if (!draft.recurrence && (draft.type === "daily" || draft.type === "weekly")) draft.type = "side";
+        if (schedule.estimatedMinutes) draft.estimatedMinutes = schedule.estimatedMinutes;
+        const notes = [`Erstellt von ${provider.label}. Bitte vor dem Speichern prüfen.`];
+        if (hasSchedule) notes.push(`Zeitplan regelbasiert erkannt: ${schedule.notes.join(" · ")}`);
+        return { draft: QuestDraftSchema.parse(draft), notes };
+      }
       lastErrors = r.errors;
     } catch (e) {
       lastErrors = [e instanceof Error ? e.message : String(e)];

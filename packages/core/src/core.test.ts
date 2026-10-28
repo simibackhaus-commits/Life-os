@@ -359,6 +359,27 @@ describe("Quick-Add-Parser", () => {
     expect(draft.recurrence?.byWeekday).toEqual([7]);
     expect(draft.category).toBe("business");
   });
+  it("Beispiele aus dem Masterprompt", () => {
+    const zaehne = parseQuickAdd("Jeden Tag zweimal Zähne putzen.", today).draft;
+    expect(zaehne.recurrence).toMatchObject({ freq: "daily", interval: 1, times: ["07:00", "21:00"] });
+    expect(zaehne.title).toBe("Zähne putzen");
+    const rasieren = parseQuickAdd("Alle drei Tage rasieren.", today).draft;
+    expect(rasieren.recurrence).toMatchObject({ freq: "daily", interval: 3 });
+    expect(rasieren.title).toBe("Rasieren");
+    const kraft = parseQuickAdd("Montags und donnerstags Krafttraining um 18 Uhr", today).draft;
+    expect(kraft.recurrence).toMatchObject({ freq: "weekly", byWeekday: [1, 4], times: ["18:00"] });
+    const schicht = parseQuickAdd("Jeden Arbeitstag zehn Minuten vor Schichtbeginn erscheinen.", today).draft;
+    expect(schicht.recurrence).toMatchObject({ freq: "weekly", byWeekday: [1, 2, 3, 4, 5] });
+    expect(schicht.estimatedMinutes).toBeNull();
+    const sparen = parseQuickAdd("Ich möchte bis Ende des Jahres 5.000 Euro sparen.", today).draft;
+    expect(sparen.type).toBe("main");
+    expect(sparen.dueAt?.slice(0, 10)).toBe("2026-12-31");
+    const hm = parseQuickAdd("Erstelle eine Hauptquest für meinen nächsten Halbmarathon.", today).draft;
+    expect(hm.type).toBe("main");
+    expect(hm.title).toBe("Nächsten Halbmarathon");
+    expect(parseQuickAdd("Jeden zweiten Tag lesen", today).draft.recurrence).toMatchObject({ freq: "daily", interval: 2 });
+    expect(parseQuickAdd("Am 15.12. Geschenke kaufen", today).draft.dueAt?.slice(0, 10)).toBe("2026-12-15");
+  });
   it("Sparziel wird Hauptquest mit Frist", () => {
     const { draft } = parseQuickAdd("Ich möchte in drei Monaten 3.000 Euro sparen.", today);
     expect(draft.type).toBe("main");
