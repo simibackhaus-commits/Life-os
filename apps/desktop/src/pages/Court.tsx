@@ -28,13 +28,15 @@ function describeConsequence(c: Consequence): string {
 }
 
 function CaseView({ c }: { c: CourtCase }) {
-  const { snap, store, run, notify } = useGame();
+  const { snap, store, run, notify, ai } = useGame();
   const messages = snap.courtMessages.filter((m) => m.caseId === c.id);
   const [plea, setPlea] = useState<Plea>("schuldig");
   const [excuse, setExcuse] = useState<Excuse>("keine");
   const [statement, setStatement] = useState("");
   const [busy, setBusy] = useState(false);
-  const open = c.status === "offen" || c.status === "verhandlung";
+  const open = c.status === "offen" || c.status === "verhandlung" || c.status === "berufung";
+  // Mit Geräte-KI verhandelt der KI-Richter; ohne sie die Edge Function (Cloud) bzw. der Regelrichter.
+  const canTalk = !!ai.provider || store.mode === "cloud";
 
   async function act(fn: () => Promise<void>) {
     setBusy(true);
@@ -59,7 +61,7 @@ function CaseView({ c }: { c: CourtCase }) {
 
       <div className="max-h-72 space-y-2 overflow-y-auto">
         {messages.map((m) => (
-          <div key={m.id} className={cn("rounded-md px-3 py-2 text-sm", m.role === "angeklagter" ? "ml-10 bg-electric/10" : m.role === "richter" ? "mr-10 border border-gold/30 bg-gold/5" : "text-xs text-muted")}>
+          <div key={m.id} className={cn("rounded-md px-3 py-2 text-sm", m.role === "angeklagter" ? "ml-10 bg-electric/10" : m.role === "richter" ? "mr-10 border border-gold/30 bg-gold/5" : m.role === "staatsanwalt" ? "mr-10 border border-danger/30 bg-danger/5" : m.role === "verteidiger" ? "mr-10 border border-success/30 bg-success/5" : "text-xs text-muted")}>
             <div className="mb-0.5 text-[10px] uppercase tracking-wider text-muted">{ROLE_LABELS[m.role]}</div>
             <p className="whitespace-pre-wrap">{m.content}</p>
           </div>
@@ -121,15 +123,24 @@ function CaseView({ c }: { c: CourtCase }) {
               </Button>
             </>
           ) : (
-            store.mode === "cloud" && (
-              <>
-                <Label>Antwort an den Richter</Label>
-                <Textarea value={statement} onChange={(e) => setStatement(e.target.value)} rows={2} />
-                <Button variant="violet" disabled={busy || !statement.trim()} onClick={() => void act(() => store.sendCourtMessage(c.id, statement))}>
-                  Antworten
+            <>
+              {canTalk && (
+                <>
+                  <Label>Antwort an den Richter</Label>
+                  <Textarea value={statement} onChange={(e) => setStatement(e.target.value)} rows={2} placeholder="Leer lassen und „Weiter verhandeln“, wenn die KI vorhin nicht erreichbar war." />
+                </>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {canTalk && (
+                  <Button variant="violet" disabled={busy} onClick={() => void act(() => store.sendCourtMessage(c.id, statement))}>
+                    {busy ? "Gericht berät…" : statement.trim() ? "Antworten" : "Weiter verhandeln"}
+                  </Button>
+                )}
+                <Button variant="outline" disabled={busy} title="Entscheidet sofort nach der Regelbasis – ohne KI" onClick={() => void act(() => store.ruleJudge(c.id))}>
+                  <Scale size={15} /> Regelrichter entscheiden lassen
                 </Button>
-              </>
-            )
+              </div>
+            </>
           )}
         </div>
       )}
@@ -168,7 +179,7 @@ function CaseView({ c }: { c: CourtCase }) {
 }
 
 export function CourtPage() {
-  const { snap, today, run, store } = useGame();
+  const { snap, today, run, ai } = useGame();
   const missed = missedMandatory(snap, today);
   const [selected, setSelected] = useState<string | null>(snap.cases[0]?.id ?? null);
   const current = snap.cases.find((c) => c.id === selected) ?? null;
@@ -178,7 +189,7 @@ export function CourtPage() {
       <div>
         <h1 className="heading text-2xl">The Court of Life</h1>
         <p className="text-sm text-muted">
-          {store.mode === "cloud" ? "Verhandlung mit dem KI-Richter." : "Lokaler Modus: Der Regelrichter entscheidet nach der Regelbasis."} Krankheit, Verletzung, Regeneration und Notfälle werden nie bestraft.
+          {ai.provider ? `Verhandlung mit dem KI-Richter (${ai.provider.label}) – jedes Urteil wird gegen die Regelbasis geprüft.` : "KI aus: Der Regelrichter entscheidet nach der Regelbasis."} Krankheit, Verletzung, Regeneration und Notfälle werden nie bestraft.
         </p>
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">

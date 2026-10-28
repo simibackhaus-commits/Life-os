@@ -27,7 +27,12 @@ import {
   type FocusStartInput,
   type FocusFinishResult,
   type UnlockCheck,
+  EXCUSE_LABELS,
+  RULEBOOK_VERSION,
+  type VerdictProposal,
 } from "@life-os/core";
+import { AiUnavailableError, aiChat, aiCouncil, aiJudge, aiQuickAdd, fallbackVerdict, type AiMessage, type JudgeOutcome, type RoleId } from "@life-os/ai";
+import { gameContext, judgeInput, pleaMessage } from "./ai-support.ts";
 
 interface ShopItemRow {
   id: string;
@@ -158,9 +163,9 @@ import {
   type InstanceRow,
   type QuestRow,
 } from "@life-os/database";
-import { DAY_CLOSED_MESSAGE, type KeyValueStorage } from "./local-store.ts";
+import { AI_OFF_MESSAGE, DAY_CLOSED_MESSAGE, type KeyValueStorage } from "./local-store.ts";
 import { Outbox, isNetworkError, type OutboxItem } from "./outbox.ts";
-import { FeatureUnavailableError, type ChatReply, type CompletionOutcome, type CourtCase, type CourtMessage, type DataStore, type QuestPatch, type Snapshot, type SyncState } from "./types.ts";
+import { FeatureUnavailableError, type AiRuntime, type ChatReply, type CompletionOutcome, type CourtCase, type CourtMessage, type DataStore, type QuestPatch, type Snapshot, type SyncState } from "./types.ts";
 
 interface CaseRow {
   id: string;
@@ -169,6 +174,7 @@ interface CaseRow {
   charge: string;
   status: CourtCase["status"];
   plea: CourtCase["plea"];
+  excuse?: CourtCase["excuse"];
   verdict: CourtCase["verdict"];
   reasoning: string | null;
   protected_reason: CourtCase["protectedReason"];
@@ -188,6 +194,7 @@ const caseFromRow = (r: CaseRow): CourtCase => ({
   charge: r.charge,
   status: r.status,
   plea: r.plea,
+  excuse: r.excuse ?? null,
   verdict: r.verdict,
   reasoning: r.reasoning,
   protectedReason: r.protected_reason,
@@ -469,36 +476,162 @@ export class CloudStore implements DataStore {
     return caseFromRow(row);
   }
 
+  // ───────────── Gericht ─────────────
+  // Ohne Geräte-KI: Edge Function „court“ (Regelrichter bzw. optional Claude).
+  // Mit Geräte-KI: KI läuft hier, Protokoll und Urteil über court_record/court_decide (serverseitig gegen die Regelbasis geprüft).
+
   private async court(caseId: string, action: "plead" | "message" | "appeal", body: Record<string, unknown>) {
     const res = await this.sb.functions.invoke("court", { body: { caseId, action, ...body } });
     if (res.error) throw new Error(`Gericht: ${await functionErrorMessage(res.error)}`);
     this.emit();
   }
 
+  private async record(caseId: string, action: "plead" | "message" | "appeal", messages: Array<{ role: CourtMessage["role"]; content: string }>, extra: { plea?: string; excuse?: string } = {}) {
+    unwrap(await this.sb.rpc("court_record", { p_case_id: caseId, p_action: action, p_plea: extra.plea ?? null, p_excuse: extra.excuse ?? null, p_messages: messages }));
+  }
+
+  private async decide(c: CourtCase, verdict: VerdictProposal) {
+    const r = unwrap<{ applied: boolean; reason?: string }>(
+      await this.sb.rpc("court_decide", {
+        p_case_id: c.id,
+        p_event_id: crypto.randomUUID(),
+        p_verdict: verdict.verdict,
+        p_reasoning: verdict.reasoning,
+        p_protected_reason: verdict.protectedReason,
+        p_consequences: verdict.consequences,
+        p_rulebook_version: RULEBOOK_VERSION,
+      }),
+    );
+    if (!r.applied) return;
+    for (const k of verdict.consequences) {
+      if (k.type !== "wiedergutmachung") continue;
+      await this.createQuest({ title: k.questTitle, description: "Vom Court of Life verhängte Wiedergutmachung.", type: "side", category: "gericht", difficulty: "leicht", estimatedMinutes: k.estimatedMinutes });
+    }
+  }
+
+  /** Ein Verhandlungsschritt des KI-Richters auf dem Gerät. KI offline → Verfahren bleibt offen. */
+  private async hearing(caseId: string) {
+    const ai = this.ai!;
+    const snap = await this.load();
+    const c = snap.cases.find((x) => x.id === caseId);
+    if (!c) throw new Error("Verfahren nicht gefunden");
+    let outcome: JudgeOutcome;
+    try {
+      outcome = await aiJudge(ai.provider, judgeInput(snap, c));
+    } catch (e) {
+      if (!(e instanceof AiUnavailableError)) throw e;
+      await this.record(caseId, "message", [{ role: "system", content: `${e.message} Das Verfahren bleibt offen – später fortsetzen oder den Regelrichter entscheiden lassen.` }]);
+      this.emit();
+      return;
+    }
+    if (outcome.kind === "frage") {
+      await this.record(caseId, "message", [{ role: "richter", content: outcome.question }]);
+    } else {
+      const who = outcome.viaFallback ? "Regelrichter (KI-Vorschlag verletzte die Regelbasis)" : `KI-Richter (${ai.provider.label})`;
+      await this.record(caseId, "message", [
+        { role: "staatsanwalt", content: outcome.prosecution },
+        { role: "verteidiger", content: outcome.defense },
+        { role: "system", content: `${c.status === "berufung" ? "Berufungsurteil" : "Urteil"} verkündet – ${who}.` },
+      ]);
+      await this.decide(c, outcome.verdict);
+    }
+    this.emit();
+  }
+
   async plead(caseId: string, input: Parameters<DataStore["plead"]>[1]) {
-    await this.court(caseId, "plead", input);
+    if (!this.ai) return this.court(caseId, "plead", input);
+    await this.record(caseId, "plead", [{ role: "angeklagter", content: pleaMessage(input.plea, input.excuse, input.statement) }], { plea: input.plea, excuse: input.excuse });
+    await this.hearing(caseId);
   }
 
   async sendCourtMessage(caseId: string, content: string) {
-    await this.court(caseId, "message", { statement: content });
+    if (!this.ai) return this.court(caseId, "message", { statement: content });
+    await this.record(caseId, "message", content.trim() ? [{ role: "angeklagter", content: content.trim() }] : []);
+    await this.hearing(caseId);
   }
 
   async appeal(caseId: string, input: Parameters<DataStore["appeal"]>[1]) {
-    await this.court(caseId, "appeal", input);
+    if (!this.ai) return this.court(caseId, "appeal", input);
+    await this.record(
+      caseId,
+      "appeal",
+      [
+        { role: "angeklagter", content: `Berufung. Grund: ${EXCUSE_LABELS[input.excuse]}.${input.statement.trim() ? `\n${input.statement.trim()}` : ""}` },
+        { role: "system", content: "Berufungsverfahren eröffnet. Das Gericht prüft das Urteil erneut." },
+      ],
+      { excuse: input.excuse },
+    );
+    await this.hearing(caseId);
   }
 
-  async chat(message: string): Promise<ChatReply> {
-    const res = await this.sb.functions.invoke("game-master", { body: { message, today: localToday() } });
-    if (res.error) {
-      const msg = await functionErrorMessage(res.error);
-      if (/KI ist nicht eingerichtet/.test(msg)) throw new FeatureUnavailableError(msg);
-      throw new Error(`Spielleiter: ${msg}`);
+  async ruleJudge(caseId: string) {
+    const snap = await this.load();
+    const c = snap.cases.find((x) => x.id === caseId);
+    if (!c || (c.status !== "verhandlung" && c.status !== "berufung")) throw new Error("Keine laufende Verhandlung.");
+    await this.record(caseId, "message", [{ role: "system", content: `${c.status === "berufung" ? "Berufungsurteil" : "Urteil"} verkündet – Regelrichter (ohne KI).` }]);
+    await this.decide(c, fallbackVerdict(judgeInput(snap, c)));
+    this.emit();
+  }
+
+  // ───────────── KI ─────────────
+
+  private ai: AiRuntime | null = null;
+
+  setAi(ai: AiRuntime | null) {
+    this.ai = ai;
+  }
+
+  async chat(message: string, role: RoleId = "spielleiter"): Promise<ChatReply> {
+    if (!this.ai) {
+      const res = await this.sb.functions.invoke("game-master", { body: { message, today: localToday() } });
+      if (res.error) {
+        const msg = await functionErrorMessage(res.error);
+        if (/KI ist nicht eingerichtet/.test(msg)) throw new FeatureUnavailableError(AI_OFF_MESSAGE);
+        throw new Error(`Spielleiter: ${msg}`);
+      }
+      return res.data as ChatReply;
     }
-    return res.data as ChatReply;
+    const today = localToday();
+    const { data } = await this.sb.from("ai_messages").select("role,content").order("created_at", { ascending: false }).limit(12);
+    const history = ((data ?? []) as AiMessage[]).reverse();
+    const context = this.ai.shareGameData ? gameContext(this.last ?? (await this.load()), today) : null;
+    let r;
+    try {
+      r = await aiChat(this.ai.provider, { role, message, history, today, context }, () => crypto.randomUUID());
+    } catch (e) {
+      if (e instanceof AiUnavailableError) throw new FeatureUnavailableError(e.message);
+      throw e;
+    }
+    // Verlauf speichern (ohne Spielwirkung); Fehler hier sind nicht kritisch.
+    await this.sb.from("ai_messages").insert([
+      { role: "user", content: message.slice(0, 8000) },
+      { role: "assistant", content: r.reply.slice(0, 8000) },
+    ]);
+    return r;
+  }
+
+  async council(question: string, roles: RoleId[]) {
+    if (!this.ai) throw new FeatureUnavailableError(AI_OFF_MESSAGE);
+    const today = localToday();
+    const context = this.ai.shareGameData ? gameContext(this.last ?? (await this.load()), today) : null;
+    try {
+      return await aiCouncil(this.ai.provider, { question, roles, today, context }, () => crypto.randomUUID());
+    } catch (e) {
+      if (e instanceof AiUnavailableError) throw new FeatureUnavailableError(e.message);
+      throw e;
+    }
   }
 
   async quickAdd(text: string) {
     const today = localToday();
+    if (this.ai) {
+      try {
+        return { ...(await aiQuickAdd(this.ai.provider, text, today, () => crypto.randomUUID())), source: "ki" as const };
+      } catch (e) {
+        const offline = parseQuickAdd(text, today);
+        return { ...offline, notes: [`KI nicht verfügbar (${e instanceof Error ? e.message : String(e)}) – Offline-Erkennung verwendet.`, ...offline.notes], source: "offline" as const };
+      }
+    }
     const res = await this.sb.functions.invoke("quick-add", { body: { text, today } });
     if (res.error || !res.data?.draft) return { ...parseQuickAdd(text, today), source: "offline" as const };
     return { draft: res.data.draft, notes: res.data.notes ?? [], source: "ki" as const };

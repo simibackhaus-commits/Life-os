@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@life-os/ai": "workspace:*",
     "@life-os/core": "workspace:*",
     "@life-os/database": "workspace:*",
     "@supabase/supabase-js": "^2.47.10"

@@ -18,11 +18,11 @@ Letzte Aktualisierung: 2026-10-28
 | Wiederkehrende Quests | FERTIG | |
 | Quick-Add mit bearbeitbarer Vorschau | FERTIG (offline) / IN ARBEIT (KI) | Offline-Parser getestet; KI-Function typgeprüft, nicht live getestet |
 | Einfaches Gerichtssystem | FERTIG (Regelrichter) / IN ARBEIT (KI) | Lokal im Browser geprüft (Freispruch bei Krankheit, Verwarnung, Berufung); KI-Function typgeprüft + Logiktests, nicht live |
-| KI-Spielleiter-Chat | IN ARBEIT | Function + UI fertig, braucht Supabase-Projekt + Anthropic-Key für den Live-Test |
+| KI-Chat mit 12 Rollen + KI-Rat (Geräte-KI) | FERTIG (Attrappe) / IN ARBEIT (echtes Modell) | ADR-18. `packages/ai` (13 Tests), Desktop im Browser gegen eine Ollama-API-Attrappe geprüft: Quick-Add, Chat-Rollen, Ratssitzung, Gericht mit Rückfrage und gekapptem Urteil. Ollama/qwen3:8b noch nicht installiert |
 | Authentifizierung (E-Mail/Passwort) | IN ARBEIT | UI + Supabase Auth angebunden, nicht live getestet |
 | Tauri-Desktop-Build / Installer | IN ARBEIT | Rust + MSVC Build Tools installiert (2026-10-27), `pnpm desktop:tauri` startet ohne Fehler. `tauri build` erzeugt `LIFE OS_0.1.0_x64-setup.exe` (2,1 MB) und `.msi`. Installation durch den Nutzer noch nicht bestätigt |
 | Echtes Supabase (Cloud) | IN ARBEIT | Projekt `askgudcwsfsfooyrslay` (West EU) verknüpft, Migration per `db push` eingespielt, `.env.local` per `scripts/write-env.ps1` erzeugt, App zeigt Login. Registrierung/Sync noch nicht durchgespielt. E-Mail-Bestätigung ist aktiv |
-| KI (Anthropic API) | GEPLANT | Bewusst zurückgestellt (keine Zusatzkosten). App nutzt Offline-Parser und Regelrichter |
+| KI kostenlos: Ollama (lokal) / Gemini Free Tier (Zustimmung) | IN ARBEIT | Provider-Schicht fertig und getestet; Anthropic/OpenAI nicht wählbar. Migration `20261102000000_free_ai.sql` (court_record/court_decide, 4 DB-Tests inkl. Parität zu VERDICT_LIMITS) **noch nicht eingespielt** |
 
 ### Nächste Schritte (Reihenfolge)
 1. Rust + C++ Build Tools installieren → `pnpm desktop:tauri` testen → `tauri build` (Installer).
@@ -88,6 +88,7 @@ Ursprünglicher Umfang:
 Hauptquartier, Avatar, Storysystem, Saison-Events, Habit Garden, Fokus-Dungeons, Animationen, externe Integrationen (Google/Outlook/Apple Calendar, Gmail, Strava, Garmin, Apple Health, WhatsApp Business API). Keine Integration gilt als fertig, bevor sie live getestet wurde.
 
 ## Sitzungsprotokoll
+- **2026-10-28 (2):** Neuer Masterprompt (kostenlose KI, 6 Phasen) abgeglichen → `docs/DEVELOPMENT_STATUS.md`. Hardware geprüft (RTX 3080 10 GB) → `qwen3:8b`. Paket `packages/ai`, KI im LocalStore/CloudStore, KI-Einstellungen, Rollen-Chat, KI-Rat, KI-Gericht mit Regelrichter-Fallback, Tauri-HTTP-Plugin. 122 Tests grün (core 61, ai 13, database 30, api 13, functions 5).
 - **2026-10-28:** Spieltag ab 04:00, Vorlage „Alltag & Training“ (54 Quests, Start Mi 04:00), Quest-Editor für beliebige Tage, Rücknahme mit Tagesabschluss (ADR-17). 103 Tests grün (core 61, database 26, api 11, functions 5).
 - **2026-10-27, Sitzung 1 (Fortsetzung):** Supabase-Projekt verknüpft und migriert, Windows-Installer gebaut, KI bewusst zurückgestellt (keine API-Kosten). Phase 2 gestartet: Expo-App mit allen Kernbildschirmen, Edge Functions deployt, Desktop auf React 19 gehoben, Selektoren nach `packages/api` verschoben. 47 Tests grün.
 - **2026-10-27, Sitzung 1:** Monorepo, Kernlogik, Schema/RLS/RPCs, API-Schicht, Desktop-UI, Edge Functions, Doku. 46 automatisierte Tests grün (core 23, database 14, api 4, functions 5). Desktop im Browser end-to-end geprüft.

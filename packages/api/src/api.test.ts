@@ -1,3 +1,4 @@
+import { AiUnavailableError, type AiProvider, type AiRequest } from "@life-os/ai";
 import { goalProgress } from "@life-os/core";
 import { describe, expect, it } from "vitest";
 import { LocalStore, type KeyValueStorage } from "./local-store.ts";
@@ -16,6 +17,26 @@ class MemoryStorage implements KeyValueStorage {
   removeItem(k: string) {
     this.m.delete(k);
   }
+}
+
+/** KI mit vorgegebenen Antworten; danach „nicht erreichbar“. */
+function scripted(...answers: string[]): AiProvider & { calls: AiRequest[] } {
+  const calls: AiRequest[] = [];
+  return {
+    id: "ollama",
+    label: "Test-KI",
+    external: false,
+    calls,
+    async generate(req) {
+      calls.push(req);
+      const a = answers.shift();
+      if (a === undefined) throw new AiUnavailableError("Ollama nicht erreichbar.");
+      return a;
+    },
+    async status() {
+      return { ok: true, detail: "ok" };
+    },
+  };
 }
 
 /** LocalStore mit steuerbarer Uhr; nextDay() lässt die Nacht vergehen und schließt den Tag ab. */
@@ -95,6 +116,57 @@ describe("LocalStore", () => {
     expect(appealed.verdict).toBe("freispruch");
     expect(s.character.coins).toBe(10);
     await expect(store.appeal(c3.id, { excuse: "notfall", statement: "" })).rejects.toThrow(/eine Berufung/);
+  });
+
+  it("Gericht mit Geräte-KI: Rückfrage, Urteil, KI offline → Verfahren bleibt offen, Regelrichter übernimmt", async () => {
+    const { store, nextDay } = clockStore();
+    const q = await store.createQuest({ title: "Training", difficulty: "schwer", mandatory: true });
+    await store.completeOccurrence({ questId: q.id, occurrenceKey: "once", dueAt: null });
+    await nextDay();
+    const ai = scripted(
+      '{"aktion":"frage","frage":"Was kam dazwischen?"}',
+      JSON.stringify({ aktion: "urteil", prosecution: "Ohne Grund versäumt.", defense: "Einsichtig.", verdict: "teilschuld", reasoning: "Das Gericht erkennt Einsicht an und verhängt eine kleine Strafe.", protectedReason: "keiner", consequences: [{ type: "coins_verlust", amount: 99 }] }),
+    );
+    store.setAi({ provider: ai, shareGameData: false });
+
+    const c = await store.openCase({ questId: q.id, occurrenceKey: "2026-10-21", charge: "Training versäumt", questXp: 50, questCoins: 10 });
+    await store.plead(c.id, { plea: "teilweise_schuldig", excuse: "keine_motivation", statement: "War müde." });
+    let s = await store.load();
+    expect(s.cases.find((x) => x.id === c.id)).toMatchObject({ status: "verhandlung", excuse: "keine_motivation" });
+    expect(s.courtMessages.filter((m) => m.caseId === c.id).map((m) => m.role)).toEqual(["system", "angeklagter", "richter"]);
+
+    await store.sendCourtMessage(c.id, "Einfach keine Lust.");
+    s = await store.load();
+    const decided = s.cases.find((x) => x.id === c.id)!;
+    expect(decided).toMatchObject({ status: "urteil", verdict: "teilschuld", consequences: [{ type: "coins_verlust", amount: 5 }] });
+    expect(s.character.coins).toBe(5);
+    expect(ai.calls[1]!.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+
+    // KI offline: nichts wird entschieden, Regelrichter kann übernehmen
+    const c2 = await store.openCase({ questId: q.id, occurrenceKey: "2026-10-22", charge: "Training versäumt", questXp: 50, questCoins: 10 });
+    await store.plead(c2.id, { plea: "nicht_schuldig", excuse: "krankheit", statement: "" });
+    s = await store.load();
+    expect(s.cases.find((x) => x.id === c2.id)!.status).toBe("verhandlung");
+    expect(s.courtMessages.at(-1)!.content).toMatch(/bleibt offen/);
+    await store.ruleJudge(c2.id);
+    s = await store.load();
+    expect(s.cases.find((x) => x.id === c2.id)).toMatchObject({ status: "urteil", verdict: "freispruch", protectedReason: "krankheit" });
+  });
+
+  it("KI: Quick-Add mit Fallback, Chat nur mit KI, Spieldaten nur mit Freigabe", async () => {
+    const { store } = clockStore();
+    await expect(store.chat("Hallo")).rejects.toThrow(/KI ist aus/);
+    const ai = scripted(JSON.stringify({ title: "Rasieren", type: "daily", difficulty: "trivial", attributes: ["ordnung"], recurrence: { freq: "daily", interval: 3, startDate: "2026-10-27" } }), JSON.stringify({ reply: "Hi", quests: [] }));
+    store.setAi({ provider: ai, shareGameData: false });
+    const d = await store.quickAdd("Alle drei Tage rasieren");
+    expect(d.source).toBe("ki");
+    expect(d.draft.recurrence).toMatchObject({ interval: 3 });
+    expect((await store.chat("Hallo", "mentor")).reply).toBe("Hi");
+    expect(ai.calls[1]!.system).toContain("NICHT freigegeben");
+    // KI erschöpft → Offline-Parser mit Hinweis
+    const f = await store.quickAdd("Jeden Tag zweimal Zähne putzen");
+    expect(f.source).toBe("offline");
+    expect(f.notes[0]).toMatch(/KI nicht verfügbar/);
   });
 
   it("Shop: Belohnung anlegen, kaufen, Guthaben prüfen", async () => {

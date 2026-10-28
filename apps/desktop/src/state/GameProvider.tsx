@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { localToday } from "@life-os/core";
 import type { DaySettlement } from "@life-os/core";
 import type { CompletionOutcome, DataStore, Snapshot, SyncState } from "@life-os/api";
+import { useAi, type AiState } from "@/lib/ai";
 
 export interface Toast {
   id: number;
@@ -25,6 +26,8 @@ interface GameCtx {
   run<T>(fn: (s: DataStore) => Promise<T>): Promise<T | undefined>;
   complete(input: { questId: string; occurrenceKey: string; dueAt: string | null }): Promise<CompletionOutcome | undefined>;
   reload(): Promise<void>;
+  /** Geräte-KI (Ollama / Gemini Free Tier) – Einstellungen und Status */
+  ai: AiState;
 }
 
 const Ctx = createContext<GameCtx | null>(null);
@@ -44,6 +47,7 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
   const [settlement, setSettlement] = useState<DaySettlement[] | null>(null);
   const [today, setToday] = useState(localToday());
   const toastId = useRef(0);
+  const ai = useAi(store);
 
   const notify = useCallback((kind: Toast["kind"], text: string) => {
     const id = ++toastId.current;
@@ -125,8 +129,9 @@ export function GameProvider({ store, children }: { store: DataStore; children: 
         run,
         complete,
         reload,
+        ai,
       },
-    [store, snap, today, sync, toasts, levelUp, settlement, notify, run, complete, reload],
+    [store, snap, today, sync, toasts, levelUp, settlement, notify, run, complete, reload, ai],
   );
 
   if (loadError && !snap)

@@ -21,16 +21,19 @@ import {
   User,
   Wifi,
   WifiOff,
+  Users,
 } from "lucide-react";
 import type { QuestDraftInput } from "@life-os/core";
 import { FeatureUnavailableError } from "@life-os/api";
+import { COUNCIL_ROLES, ROLES, type RoleId } from "@life-os/ai";
+import { AiStatusLine } from "./AiSettings";
 import { missedMandatory, upcoming } from "@life-os/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useGame } from "@/state/GameProvider";
 import { Button } from "./ui/button";
 import { Badge, Card, CardTitle, Input } from "./ui/primitives";
 
-export type Page = "dashboard" | "hq" | "events" | "quests" | "calendar" | "character" | "skills" | "court" | "shop" | "dungeons" | "garden" | "career" | "fitness" | "finance" | "stats" | "settings";
+export type Page = "dashboard" | "hq" | "events" | "quests" | "calendar" | "character" | "skills" | "court" | "council" | "shop" | "dungeons" | "garden" | "career" | "fitness" | "finance" | "stats" | "settings";
 
 const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: number }> = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} /> },
@@ -40,6 +43,7 @@ const NAV: Array<{ id: Page | null; label: string; icon: ReactNode; phase?: numb
   { id: "character", label: "Charakter", icon: <User size={17} /> },
   { id: "skills", label: "Skilltree", icon: <Network size={17} /> },
   { id: "court", label: "Gericht", icon: <Gavel size={17} /> },
+  { id: "council", label: "KI-Rat", icon: <Users size={17} /> },
   { id: "shop", label: "Shop", icon: <ShoppingBag size={17} /> },
   { id: "dungeons", label: "Dungeons", icon: <Swords size={17} /> },
   { id: "garden", label: "Garten", icon: <Sprout size={17} /> },
@@ -101,12 +105,17 @@ interface ChatEntry {
   proposals?: QuestDraftInput[];
 }
 
+const CHAT_ROLES: RoleId[] = ["spielleiter", ...COUNCIL_ROLES];
+
 function GameMasterChat() {
-  const { store, run, notify } = useGame();
+  const { store, run, notify, ai } = useGame();
+  const [role, setRole] = useState<RoleId>("spielleiter");
   const [log, setLog] = useState<ChatEntry[]>([
     {
       role: "system",
-      text: store.mode === "local" ? "Der KI-Spielleiter benötigt Supabase + Anthropic-Key (siehe README). Im lokalen Modus nicht verfügbar." : "Frag mich z. B. „Plane meinen morgigen Tag“ oder „Ich habe nur 30 Minuten – was ist am wichtigsten?“",
+      text: ai.provider
+        ? "Frag z. B. „Plane meinen morgigen Tag“ oder „Ich habe nur 30 Minuten – was ist am wichtigsten?“"
+        : "Die KI ist aus. Unter Einstellungen → KI lässt sich Ollama kostenlos einrichten. Alle anderen Funktionen laufen ohne KI.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -120,7 +129,7 @@ function GameMasterChat() {
     setLog((l) => [...l, { role: "user", text: msg }]);
     setBusy(true);
     try {
-      const r = await store.chat(msg);
+      const r = await store.chat(msg, role);
       setLog((l) => [...l, { role: "assistant", text: r.reply, proposals: r.proposals }]);
     } catch (e) {
       const text = e instanceof FeatureUnavailableError ? e.message : `Fehler: ${e instanceof Error ? e.message : String(e)}`;
@@ -140,7 +149,19 @@ function GameMasterChat() {
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <CardTitle>KI-Spielleiter</CardTitle>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <CardTitle className="mb-0">KI-Chat</CardTitle>
+        <select className="rounded-md border border-border bg-surface-2 px-1.5 py-1 text-xs" value={role} onChange={(e) => setRole(e.target.value as RoleId)} aria-label="Rolle">
+          {CHAT_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLES[r].icon} {ROLES[r].name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="-mt-1 mb-2 text-[11px]">
+        <AiStatusLine />
+      </p>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 text-sm">
         {log.map((e, i) => (
           <div key={i} className={cn("rounded-md px-3 py-2", e.role === "user" ? "ml-6 bg-electric/10 text-text" : e.role === "assistant" ? "mr-4 bg-violet/10" : "text-xs text-muted")}>
@@ -155,7 +176,7 @@ function GameMasterChat() {
             ))}
           </div>
         ))}
-        {busy && <div className="text-xs text-muted">Der Spielleiter denkt nach…</div>}
+        {busy && <div className="text-xs text-muted">{ROLES[role].name} denkt nach… (lokale Modelle brauchen beim ersten Mal etwas länger)</div>}
         <div ref={endRef} />
       </div>
       <form
@@ -165,7 +186,7 @@ function GameMasterChat() {
           void send();
         }}
       >
-        <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Nachricht an den Spielleiter…" disabled={busy} />
+        <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Nachricht an: ${ROLES[role].name}…`} disabled={busy} />
         <Button type="submit" variant="violet" size="icon" disabled={busy || !input.trim()} aria-label="Senden">
           <Send size={15} />
         </Button>

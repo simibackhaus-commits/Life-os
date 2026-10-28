@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { ATTRIBUTE_CURVE, DUNGEONS, computeReward, levelFromXp, xpToNext } from "@life-os/core";
+import { ATTRIBUTE_CURVE, DUNGEONS, computeReward, levelFromXp, validateVerdict, xpToNext } from "@life-os/core";
 
 /**
  * Führt die echten Migrationen gegen Postgres (PGlite, WASM) aus.
@@ -217,6 +217,92 @@ describe("Gericht", () => {
         JSON.stringify([{ type: "coins_verlust", amount: 500 }]),
       ]),
     ).rejects.toThrow(/caps/);
+  });
+});
+
+describe("Gericht mit Geräte-KI (court_record / court_decide)", () => {
+  const ctx = { questXp: 40, questCoins: 20 };
+  const newCase = () =>
+    as(USER_A, () => one<{ id: string }>("insert into public.court_cases (charge, quest_xp, quest_coins) values ('Krafttraining versäumt', 40, 20) returning id"));
+  const record = (id: string, action: string, plea: string | null, excuse: string | null, msgs: unknown[] = []) =>
+    one<{ r: unknown }>("select public.court_record($1, $2, $3, $4, $5) as r", [id, action, plea, excuse, JSON.stringify(msgs)]);
+  const decide = (id: string, e: number, verdict: string, cons: unknown[], prot: string | null = null) =>
+    one<{ r: { applied: boolean; reason?: string } }>("select public.court_decide($1, $2, $3, 'Begründung des Gerichts', $4, $5, '1.0.0') as r", [
+      id,
+      ev(e),
+      verdict,
+      prot,
+      JSON.stringify(cons),
+    ]);
+  const caseDelta = (id: string) => one<{ coins: number }>("select coalesce(sum(coin_delta),0)::int as coins from public.game_events where ref_id = $1", [id]);
+
+  it("verdict_within_limits stimmt mit validateVerdict überein", async () => {
+    const verdicts = ["freispruch", "einstellung", "verwarnung", "teilschuld", "schuldig_mildernd", "schuldig"] as const;
+    const sets = [
+      [],
+      [{ type: "reflexion", prompt: "Was hat dich heute abgehalten?" }],
+      [{ type: "coins_verlust", amount: 10 }],
+      [{ type: "coins_verlust", amount: 15 }],
+      [{ type: "coins_verlust", amount: 20 }],
+      [{ type: "xp_abzug", amount: 10 }],
+      [{ type: "xp_abzug", amount: 20 }],
+      [{ type: "wiedergutmachung", questTitle: "Zehn Minuten Mobility", estimatedMinutes: 10 }],
+      [{ type: "bonus_verlust", description: "Streak-Bonus" }],
+    ];
+    for (const v of verdicts)
+      for (const cs of sets) {
+        const ts = validateVerdict({ verdict: v, reasoning: "Begründung des Gerichts.", consequences: cs }, ctx);
+        const tsOk = ts.ok && JSON.stringify(ts.sanitized!.consequences) === JSON.stringify(cs);
+        const sql = await one<{ ok: boolean }>("select public.verdict_within_limits($1, $2, 40, 20) as ok", [v, JSON.stringify(cs)]);
+        expect([v, cs, sql.ok]).toEqual([v, cs, tsOk]);
+      }
+  });
+
+  it("Plädoyer → Urteil → Berufung nur zugunsten des Angeklagten", async () => {
+    const c = await newCase();
+    await as(USER_A, () => record(c.id, "plead", "schuldig", "keine_motivation", [{ role: "angeklagter", content: "Ich war faul." }, { role: "richter", content: "Warum?" }]));
+    expect((await as(USER_A, () => one<{ status: string; excuse: string }>("select status, excuse from public.court_cases where id = $1", [c.id])))).toEqual({
+      status: "verhandlung",
+      excuse: "keine_motivation",
+    });
+    expect((await as(USER_A, () => decide(c.id, 9040, "schuldig", [{ type: "coins_verlust", amount: 10 }]))).r.applied).toBe(true);
+    expect((await as(USER_A, () => decide(c.id, 9041, "freispruch", []))).r).toEqual({ applied: false, reason: "case_closed" });
+
+    await as(USER_A, () => record(c.id, "appeal", null, "keine_zeit", [{ role: "angeklagter", content: "Termin." }]));
+    expect((await as(USER_A, () => decide(c.id, 9042, "schuldig", [{ type: "coins_verlust", amount: 20 }]))).r).toEqual({ applied: false, reason: "appeal_rejected" });
+    await expect(as(USER_A, () => record(c.id, "appeal", null, null))).rejects.toThrow(/appeal not possible/);
+    expect((await caseDelta(c.id)).coins).toBe(-10);
+
+    const d = await newCase();
+    await as(USER_A, () => record(d.id, "plead", "schuldig", "vergessen"));
+    await as(USER_A, () => decide(d.id, 9043, "schuldig", [{ type: "coins_verlust", amount: 10 }]));
+    await as(USER_A, () => record(d.id, "appeal", null, "keine_zeit"));
+    expect((await as(USER_A, () => decide(d.id, 9044, "verwarnung", []))).r.applied).toBe(true);
+    expect((await caseDelta(d.id)).coins).toBe(0);
+  });
+
+  it("Schutzgrund, Grenzen, fremde Fälle und anon werden abgewiesen", async () => {
+    const c = await newCase();
+    await as(USER_A, () => record(c.id, "plead", "nicht_schuldig", "krankheit"));
+    await expect(as(USER_A, () => decide(c.id, 9050, "schuldig", []))).rejects.toThrow(/protected excuse/);
+    await expect(as(USER_A, () => decide(c.id, 9051, "teilschuld", [{ type: "coins_verlust", amount: 11 }]))).rejects.toThrow(/protected excuse/);
+    expect((await as(USER_A, () => decide(c.id, 9052, "freispruch", [], "krankheit"))).r.applied).toBe(true);
+
+    const d = await newCase();
+    await as(USER_A, () => record(d.id, "plead", "schuldig", "keine"));
+    await expect(as(USER_A, () => decide(d.id, 9053, "teilschuld", [{ type: "coins_verlust", amount: 11 }]))).rejects.toThrow(/limits/);
+    await expect(as(USER_A, () => decide(d.id, 9054, "verwarnung", [{ type: "wiedergutmachung", questTitle: "x", estimatedMinutes: 10 }]))).rejects.toThrow(/limits/);
+    await expect(as(USER_B, () => record(d.id, "message", null, null, [{ role: "richter", content: "x" }]))).rejects.toThrow(/case not found/);
+    await expect(as(USER_B, () => decide(d.id, 9055, "freispruch", []))).rejects.toThrow(/case not found/);
+    await expect(as(USER_A, () => record(d.id, "message", null, null, [{ role: "admin", content: "x" }]))).rejects.toThrow(/invalid role/);
+    await db.exec("set role anon");
+    await expect(db.query("select public.court_record(gen_random_uuid(), 'message', null, null, '[]')")).rejects.toThrow(/permission denied/);
+    await db.exec("reset role");
+  });
+
+  it("Spielleiter-Antworten der Geräte-KI dürfen gespeichert werden", async () => {
+    await as(USER_A, () => db.query("insert into public.ai_messages (role, content) values ('user', 'Hallo'), ('assistant', 'Hallo zurück')"));
+    await expect(as(USER_A, () => db.query("insert into public.ai_messages (role, content) values ('system', 'x')"))).rejects.toThrow();
   });
 });
 

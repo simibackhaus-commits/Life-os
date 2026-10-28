@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
+    "@life-os/ai": "workspace:*",
     "@life-os/api": "workspace:*",
     "@life-os/core": "workspace:*",
     "@life-os/ui-tokens": "workspace:*",

@@ -3,6 +3,7 @@ import { Download, LogOut, Trash2 } from "lucide-react";
 import { availableTitles, levelFromXp } from "@life-os/core";
 import { achievementsFor } from "@life-os/api";
 import { Achievements } from "@/components/Achievements";
+import { AiSettingsCard } from "@/components/AiSettings";
 import { AttributeGrid, CharacterSummary } from "@/components/game";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, Input, Label } from "@/components/ui/primitives";
@@ -99,52 +100,18 @@ export function CharacterPage() {
 }
 
 /** Einwilligung, dass der KI-Spielleiter Quests, Ziele und Fortschritte lesen darf. */
-function AiConsent() {
-  const { notify } = useGame();
-  const [consent, setConsent] = useState<boolean | null>(null);
-  useEffect(() => {
-    void supabase
-      ?.from("user_settings")
-      .select("ai_context_consent")
-      .single()
-      .then(({ data }) => setConsent(Boolean(data?.ai_context_consent)));
-  }, []);
-  if (!supabase || consent === null) return null;
-  return (
-    <Card>
-      <CardTitle>KI-Spielleiter – Datenzugriff</CardTitle>
-      <label className="flex items-start gap-3 text-sm">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={consent}
-          onChange={async (e) => {
-            const value = e.target.checked;
-            const { error } = await supabase!.from("user_settings").update({ ai_context_consent: value }).not("user_id", "is", null);
-            if (error) notify("error", error.message);
-            else setConsent(value);
-          }}
-        />
-        <span className="text-muted">
-          Der Spielleiter darf meine Quests, Routinen, Fortschritte und Charakterwerte lesen, um Tage zu planen und Vorschläge zu machen. Die Daten werden dafür an die Anthropic API übermittelt. Ohne Freigabe antwortet er nur allgemein.
-        </span>
-      </label>
-    </Card>
-  );
-}
-
 export function SettingsPage() {
   const { store, run, notify } = useGame();
   const [confirm, setConfirm] = useState("");
   return (
     <div className="max-w-2xl space-y-4">
       <h1 className="heading text-2xl">Einstellungen</h1>
-      <AiConsent />
+      <AiSettingsCard />
       <Card>
         <CardTitle>Speichermodus</CardTitle>
         {store.mode === "local" ? (
           <p className="text-sm text-muted">
-            Lokaler Modus: Dein Spielstand liegt nur auf diesem Gerät. Für Sync mit dem iPhone und den KI-Spielleiter trage <code>VITE_SUPABASE_URL</code> und <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env.local</code> ein (siehe README).
+            Lokaler Modus: Dein Spielstand liegt nur auf diesem Gerät. Für Sync mit dem iPhone trage <code>VITE_SUPABASE_URL</code> und <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env.local</code> ein (siehe README).
           </p>
         ) : (
           <div className="flex items-center justify-between gap-3 text-sm">

@@ -7,11 +7,11 @@ import {
   parseQuickAdd,
   purchaseItem,
   unlockSkill,
-  simpleJudge,
   uncompleteInstance,
   settleDays,
-  validateVerdict,
   RULEBOOK_VERSION,
+  EXCUSE_LABELS,
+  type VerdictProposal,
   ShopItemDraftSchema,
   GoalDraftSchema,
   FinanceEntrySchema,
@@ -36,8 +36,11 @@ import {
   type ShopItemDraftInput,
   type ShopPurchase,
 } from "@life-os/core";
+import { AiUnavailableError, aiChat, aiCouncil, aiJudge, aiQuickAdd, fallbackVerdict, type AiMessage, type JudgeOutcome, type RoleId } from "@life-os/ai";
+import { gameContext, judgeInput, pleaMessage } from "./ai-support.ts";
 import {
   FeatureUnavailableError,
+  type AiRuntime,
   type CourtCase,
   type CourtMessage,
   type DataStore,
@@ -45,7 +48,8 @@ import {
   type SyncState,
 } from "./types.ts";
 
-export const DAY_CLOSED_MESSAGE = "Dieser Tag ist bereits abgeschlossen – Rücknahme nicht mehr möglich.";
+export const AI_OFF_MESSAGE = "Die KI ist aus. Unter Einstellungen → KI lässt sich Ollama (kostenlos, lokal) einrichten.";
+export const DAY_CLOSED_MESSAGE ="Dieser Tag ist bereits abgeschlossen – Rücknahme nicht mehr möglich.";
 
 export interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -170,6 +174,7 @@ export class LocalStore implements DataStore {
       charge: input.charge,
       status: "offen",
       plea: null,
+      excuse: null,
       verdict: null,
       reasoning: null,
       protectedReason: null,
@@ -190,32 +195,34 @@ export class LocalStore implements DataStore {
     return { id: this.uuid(), caseId, role, content, createdAt: this.now().toISOString() };
   }
 
-  private judge(caseId: string, plea: CourtCase["plea"] & string, excuse: Parameters<DataStore["plead"]>[1]["excuse"], statement: string, isAppeal: boolean) {
+  private caseById(caseId: string): CourtCase {
     const c = this.snap.cases.find((x) => x.id === caseId);
     if (!c) throw new Error("Verfahren nicht gefunden");
-    const quest = this.snap.quests.find((q) => q.id === c.questId);
-    const prior = this.snap.cases.filter(
-      (x) => x.id !== caseId && x.status === "urteil" && x.verdict && !["freispruch", "einstellung"].includes(x.verdict),
-    ).length;
-    const proposal = simpleJudge({ plea, excuse, priorConvictions: prior, questTitle: quest?.title ?? c.charge });
-    const v = validateVerdict(proposal, { questXp: c.questXp, questCoins: c.questCoins });
-    if (!v.ok || !v.sanitized) throw new Error(`Urteil verletzt Regelbasis: ${v.errors.join("; ")}`);
-    const verdict = v.sanitized;
+    return c;
+  }
 
-    let state = this.snap;
-    const msgs: CourtMessage[] = [];
-    if (statement.trim()) msgs.push(this.message(caseId, "angeklagter", statement.trim()));
+  private patchCase(caseId: string, patch: Partial<CourtCase>, msgs: CourtMessage[] = []) {
+    this.commit({
+      ...this.snap,
+      cases: this.snap.cases.map((x) => (x.id === caseId ? { ...x, ...patch } : x)),
+      courtMessages: [...this.snap.courtMessages, ...msgs],
+    });
+  }
+
+  /** Urteil buchen (Konsequenzen, Wiedergutmachung, Schutzgrund). Bei Berufung nur zugunsten des Angeklagten. */
+  private finish(caseId: string, verdict: VerdictProposal, msgs: CourtMessage[], note: string) {
+    const c = this.caseById(caseId);
+    const isAppeal = c.status === "berufung";
+    let state = { ...this.snap, courtMessages: [...this.snap.courtMessages, ...msgs] };
 
     if (isAppeal && c.consequences.length) {
-      // Berufung nur zugunsten des Angeklagten: neues Urteil gilt, wenn es nicht härter ist.
       const oldD = consequenceDeltas(c.consequences);
       const newD = consequenceDeltas(verdict.consequences);
       if (newD.coins < oldD.coins || newD.xp < oldD.xp) {
-        msgs.push(this.message(caseId, "richter", "Die Berufung wird zurückgewiesen. Das ursprüngliche Urteil bleibt bestehen."));
         this.commit({
           ...state,
-          cases: state.cases.map((x) => (x.id === caseId ? { ...x, status: "urteil", appealCount: x.appealCount + 1 } : x)),
-          courtMessages: [...state.courtMessages, ...msgs],
+          cases: state.cases.map((x) => (x.id === caseId ? { ...x, status: "urteil" } : x)),
+          courtMessages: [...state.courtMessages, this.message(caseId, "richter", "Die Berufung wird zurückgewiesen. Das ursprüngliche Urteil bleibt bestehen.")],
         });
         return;
       }
@@ -249,7 +256,6 @@ export class LocalStore implements DataStore {
     }
 
     // Die Begründung steht im Urteil selbst; im Verlauf nur ein kurzer Vermerk.
-    msgs.push(this.message(caseId, "system", isAppeal ? "Berufungsurteil verkündet." : "Urteil verkündet."));
     this.commit({
       ...state,
       quests,
@@ -259,44 +265,123 @@ export class LocalStore implements DataStore {
           ? {
               ...x,
               status: "urteil",
-              plea,
               verdict: verdict.verdict,
               reasoning: verdict.reasoning,
               protectedReason: verdict.protectedReason,
               consequences: verdict.consequences,
               rulebookVersion: RULEBOOK_VERSION,
               decidedAt: this.now().toISOString(),
-              appealCount: x.appealCount + (isAppeal ? 1 : 0),
             }
           : x,
       ),
-      courtMessages: [...state.courtMessages, ...msgs],
+      courtMessages: [...state.courtMessages, this.message(caseId, "system", note)],
     });
   }
 
-  async plead(caseId: string, input: Parameters<DataStore["plead"]>[1]) {
-    this.judge(caseId, input.plea, input.excuse, input.statement, false);
+  /** Regelrichter: entscheidet sofort und immer regelkonform. */
+  async ruleJudge(caseId: string) {
+    const c = this.caseById(caseId);
+    if (c.status !== "verhandlung" && c.status !== "berufung") throw new Error("Keine laufende Verhandlung.");
+    this.finish(caseId, fallbackVerdict(judgeInput(this.snap, c)), [], `${c.status === "berufung" ? "Berufungsurteil" : "Urteil"} verkündet – Regelrichter (ohne KI).`);
   }
 
-  async sendCourtMessage(): Promise<void> {
-    throw new FeatureUnavailableError("Die KI-Verhandlung braucht Supabase + Anthropic-Key. Lokal entscheidet der Regelrichter.");
+  /** Ein Verhandlungsschritt des KI-Richters: Rückfrage oder Urteil. KI offline → Verfahren bleibt offen. */
+  private async hearing(caseId: string) {
+    if (!this.ai) return this.ruleJudge(caseId);
+    const label = this.ai.provider.label;
+    const c = this.caseById(caseId);
+    let outcome: JudgeOutcome;
+    try {
+      outcome = await aiJudge(this.ai.provider, judgeInput(this.snap, c));
+    } catch (e) {
+      if (!(e instanceof AiUnavailableError)) throw e;
+      this.patchCase(caseId, {}, [this.message(caseId, "system", `${e.message} Das Verfahren bleibt offen – später fortsetzen oder den Regelrichter entscheiden lassen.`)]);
+      return;
+    }
+    if (outcome.kind === "frage") {
+      this.patchCase(caseId, {}, [this.message(caseId, "richter", outcome.question)]);
+      return;
+    }
+    const msgs: CourtMessage[] = [];
+    if (outcome.prosecution) msgs.push(this.message(caseId, "staatsanwalt", outcome.prosecution));
+    if (outcome.defense) msgs.push(this.message(caseId, "verteidiger", outcome.defense));
+    const who = outcome.viaFallback ? "Regelrichter (KI-Vorschlag verletzte die Regelbasis)" : `KI-Richter (${label})`;
+    this.finish(caseId, outcome.verdict, msgs, `${c.status === "berufung" ? "Berufungsurteil" : "Urteil"} verkündet – ${who}.`);
+  }
+
+  async plead(caseId: string, input: Parameters<DataStore["plead"]>[1]) {
+    const c = this.caseById(caseId);
+    if (c.status !== "offen" || c.plea) throw new Error("Plädoyer bereits abgegeben.");
+    this.patchCase(caseId, { plea: input.plea, excuse: input.excuse, status: "verhandlung" }, [this.message(caseId, "angeklagter", pleaMessage(input.plea, input.excuse, input.statement))]);
+    await this.hearing(caseId);
+  }
+
+  async sendCourtMessage(caseId: string, content: string): Promise<void> {
+    this.requireAi();
+    const c = this.caseById(caseId);
+    if (c.status !== "verhandlung" && c.status !== "berufung") throw new Error("Keine laufende Verhandlung.");
+    if (content.trim()) this.patchCase(caseId, {}, [this.message(caseId, "angeklagter", content.trim())]);
+    await this.hearing(caseId);
   }
 
   async appeal(caseId: string, input: { excuse: Parameters<DataStore["plead"]>[1]["excuse"]; statement: string }) {
-    const c = this.snap.cases.find((x) => x.id === caseId);
-    if (!c || c.status !== "urteil") throw new Error("Nur gefällte Urteile können angefochten werden.");
+    const c = this.caseById(caseId);
+    if (c.status !== "urteil") throw new Error("Nur gefällte Urteile können angefochten werden.");
     if (c.appealCount >= 1) throw new Error("Pro Verfahren ist eine Berufung möglich.");
-    this.judge(caseId, "nicht_schuldig", input.excuse, input.statement, true);
+    this.patchCase(caseId, { status: "berufung", appealCount: c.appealCount + 1, excuse: input.excuse }, [
+      this.message(caseId, "angeklagter", `Berufung. Grund: ${EXCUSE_LABELS[input.excuse]}.${input.statement.trim() ? `\n${input.statement.trim()}` : ""}`),
+      this.message(caseId, "system", "Berufungsverfahren eröffnet. Das Gericht prüft das Urteil erneut."),
+    ]);
+    await this.hearing(caseId);
   }
 
-  async chat(): Promise<never> {
-    throw new FeatureUnavailableError(
-      "Der KI-Spielleiter ist im lokalen Modus nicht verfügbar. Verbinde Supabase und hinterlege den Anthropic-Key als Secret (siehe README).",
-    );
+  // ───────────── Geräte-KI (kostenlos: Ollama / Gemini Free Tier) ─────────────
+
+  private ai: AiRuntime | null = null;
+  private chatHistory: AiMessage[] = [];
+
+  setAi(ai: AiRuntime | null) {
+    this.ai = ai;
+  }
+
+  private requireAi(): AiRuntime {
+    if (!this.ai) throw new FeatureUnavailableError(AI_OFF_MESSAGE);
+    return this.ai;
+  }
+
+  async chat(message: string, role: RoleId = "spielleiter") {
+    const ai = this.requireAi();
+    const today = localToday(this.now());
+    try {
+      const r = await aiChat(ai.provider, { role, message, history: this.chatHistory, today, context: ai.shareGameData ? gameContext(this.snap, today) : null }, this.uuid);
+      this.chatHistory = [...this.chatHistory, { role: "user" as const, content: message }, { role: "assistant" as const, content: r.reply }].slice(-16);
+      return r;
+    } catch (e) {
+      if (e instanceof AiUnavailableError) throw new FeatureUnavailableError(e.message);
+      throw e;
+    }
+  }
+
+  async council(question: string, roles: RoleId[]) {
+    const ai = this.requireAi();
+    const today = localToday(this.now());
+    try {
+      return await aiCouncil(ai.provider, { question, roles, today, context: ai.shareGameData ? gameContext(this.snap, today) : null }, this.uuid);
+    } catch (e) {
+      if (e instanceof AiUnavailableError) throw new FeatureUnavailableError(e.message);
+      throw e;
+    }
   }
 
   async quickAdd(text: string) {
-    return { ...parseQuickAdd(text, localToday(this.now())), source: "offline" as const };
+    const today = localToday(this.now());
+    if (!this.ai) return { ...parseQuickAdd(text, today), source: "offline" as const };
+    try {
+      return { ...(await aiQuickAdd(this.ai.provider, text, today, this.uuid)), source: "ki" as const };
+    } catch (e) {
+      const offline = parseQuickAdd(text, today);
+      return { ...offline, notes: [`KI nicht verfügbar (${e instanceof Error ? e.message : String(e)}) – Offline-Erkennung verwendet.`, ...offline.notes], source: "offline" as const };
+    }
   }
 
   async createShopItem(input: ShopItemDraftInput) {

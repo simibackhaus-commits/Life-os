@@ -5,6 +5,7 @@ import { RightPanel, Sidebar, type Page } from "@/components/layout";
 import { QuickAdd } from "@/components/QuickAdd";
 import { createCloudStore, createLocalStore, supabase } from "@/lib/store";
 import { CourtPage } from "@/pages/Court";
+import { CouncilPage } from "@/pages/Council";
 import { Dashboard } from "@/pages/Dashboard";
 import { AuthPage, CharacterPage, SettingsPage } from "@/pages/Other";
 import { QuestsPage } from "@/pages/Quests";
@@ -45,6 +46,7 @@ function Shell() {
         {page === "quests" && <QuestsPage />}
         {page === "character" && <CharacterPage />}
         {page === "court" && <CourtPage />}
+        {page === "council" && <CouncilPage />}
         {page === "calendar" && <CalendarPage />}
         {page === "skills" && <SkilltreePage />}
         {page === "shop" && <ShopPage />}
