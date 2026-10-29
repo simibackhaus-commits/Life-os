@@ -72,7 +72,15 @@ jobs:
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/LifeOS.xcarchive" archive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > "$RUNNER_TEMP/xcodebuild.log" 2>&1 \
-            || { grep -E "error:|ARCHIVE FAILED|failed" "$RUNNER_TEMP/xcodebuild.log" | head -n 80; tail -n 40 "$RUNNER_TEMP/xcodebuild.log"; exit 1; }
+            || {
+              grep -E "error:|ARCHIVE FAILED|failed" "$RUNNER_TEMP/xcodebuild.log" | head -n 80
+              tail -n 40 "$RUNNER_TEMP/xcodebuild.log"
+              # Fehler zusätzlich als Annotation – die sind bei öffentlichen Repos ohne Anmeldung lesbar
+              grep -E "error:" "$RUNNER_TEMP/xcodebuild.log" | sed -E 's#^/Users/runner/work/[^ ]*/node_modules/\.pnpm/[^/]*/node_modules/##; s#^/Users/runner/[^ ]*/(apps|packages)/#\1/#' \
+                | awk '!seen[$0]++' | head -n 12 | while IFS= read -r line; do echo "::error title=xcodebuild::${line:0:900}"; done
+              grep -A3 "The following build commands failed" "$RUNNER_TEMP/xcodebuild.log" | tail -n 3 | while IFS= read -r line; do echo "::warning title=Fehlgeschlagen::${line:0:600}"; done
+              exit 1
+            }
           tail -n 15 "$RUNNER_TEMP/xcodebuild.log"
           echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
       - name: IPA packen (Berechtigungen eintragen, damit SideStore sie übernimmt)
