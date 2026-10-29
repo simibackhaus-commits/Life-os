@@ -12,10 +12,18 @@ on:
         default: "1"
   push:
     tags: ["v*"]
+    branches: [master]
+    # Automatisch bauen, wenn sich App-Code ändert (öffentliches Repo: kostenlos)
+    paths: ["apps/mobile/**", "packages/**", "pnpm-lock.yaml", ".github/workflows/ios-ipa.yml"]
 
 concurrency:
   group: ios-ipa
   cancel-in-progress: true
+
+defaults:
+  run:
+    # pipefail: ein Fehler von xcodebuild darf nicht durch „| tail“ verdeckt werden
+    shell: bash
 
 jobs:
   tests:
@@ -36,7 +44,7 @@ jobs:
   ipa:
     needs: tests
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       CI: "1"
       LIFE_OS_MEMORY_ENTITLEMENTS: ${{ github.event.inputs.memory_entitlements || '1' }}
@@ -63,7 +71,9 @@ jobs:
           xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/LifeOS.xcarchive" archive \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -n 60
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > "$RUNNER_TEMP/xcodebuild.log" 2>&1 \
+            || { grep -E "error:|ARCHIVE FAILED|failed" "$RUNNER_TEMP/xcodebuild.log" | head -n 80; tail -n 40 "$RUNNER_TEMP/xcodebuild.log"; exit 1; }
+          tail -n 15 "$RUNNER_TEMP/xcodebuild.log"
           echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
       - name: IPA packen (Berechtigungen eintragen, damit SideStore sie übernimmt)
         working-directory: apps/mobile/ios

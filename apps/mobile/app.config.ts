@@ -54,7 +54,8 @@ const config: ExpoConfig = {
     ["expo-notifications", { color: "#e6b450" }],
     // llama.cpp für die Geräte-KI; Berechtigungen setzen wir oben selbst (abschaltbar)
     ["llama.rn", { enableEntitlements: false, forceCxx20: true, enableOpenCLAndHexagon: false }],
-    ["expo-build-properties", { ios: { deploymentTarget: "16.4" } }],
+    // llama.rn braucht RCTCxxBridge – fehlt im vorkompilierten React Native, daher aus dem Quellcode bauen
+    ["expo-build-properties", { ios: { deploymentTarget: "16.4", buildReactNativeFromSource: true } }],
   ],
   experiments: { typedRoutes: true },
   extra: {
