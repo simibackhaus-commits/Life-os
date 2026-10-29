@@ -1,6 +1,7 @@
 # Baut die native iPhone-App (unsigniert) auf einem macOS-Runner von GitHub.
 # Ergebnis: LIFE-OS.ipa als Artefakt → mit SideStore (kostenlose Apple-ID, 7-Tage-Signatur) installieren.
 # Start: GitHub → Actions → „iPhone-App bauen“ → Run workflow (oder automatisch bei Tags v*).
+# Anleitung: docs/IPHONE_BUILD.md
 name: iPhone-App bauen
 
 on:
