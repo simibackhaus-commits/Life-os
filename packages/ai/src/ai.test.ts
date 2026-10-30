@@ -246,6 +246,20 @@ describe("Geräte-KI (iPhone)", () => {
     expect(p.stats.lastTokensPerSecond).toBe(18.5);
   });
 
+  it("Vorladen, Freigeben im Hintergrund, erneutes Laden bei Bedarf", async () => {
+    const e = fakeEngine();
+    const p = new OnDeviceProvider(e, MODEL_CATALOG[1]!, "/docs/m.gguf", async () => true);
+    expect(await p.preload()).toBe(true);
+    expect(p.loaded).toBe(true);
+    await p.generate({ system: "s", messages: [{ role: "user", content: "a" }] });
+    expect(e.loads).toBe(1);
+    await p.unload();
+    expect(p.loaded).toBe(false);
+    await p.generate({ system: "s", messages: [{ role: "user", content: "b" }] });
+    expect(e.loads).toBe(2);
+    expect(await new OnDeviceProvider(fakeEngine(), MODEL_CATALOG[1]!, "/x", async () => false).preload()).toBe(false);
+  });
+
   it("fehlendes Modell → verständlicher Fehler, Verlauf wird ins Kontextfenster gekürzt", async () => {
     const p = new OnDeviceProvider(fakeEngine(), MODEL_CATALOG[0]!, "/x.gguf", async () => false);
     await expect(p.generate({ system: "s", messages: [] })).rejects.toThrow(/nicht heruntergeladen/);

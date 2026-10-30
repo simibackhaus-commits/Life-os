@@ -159,6 +159,30 @@ export class OnDeviceProvider implements AiProvider {
     await this.loading;
   }
 
+  /** true, wenn das Modell schon im Speicher liegt (Antworten ohne Ladezeit). */
+  get loaded(): boolean {
+    return this.engine.loadedPath === this.modelPath;
+  }
+
+  /**
+   * Lädt das Modell vorab (z. B. kurz nach App-Start), damit die erste Frage nicht ~20 s wartet.
+   * Fehler werden verschluckt – generate() meldet sie später verständlich.
+   */
+  async preload(): Promise<boolean> {
+    try {
+      await this.ensureLoaded();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Gibt den Arbeitsspeicher frei (App im Hintergrund), damit iOS die App nicht beendet. */
+  async unload(): Promise<void> {
+    if (this.loading) await this.loading.catch(() => {});
+    if (this.loaded) await this.engine.release();
+  }
+
   async generate(req: AiRequest): Promise<string> {
     try {
       await this.ensureLoaded();

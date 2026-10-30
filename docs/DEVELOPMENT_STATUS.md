@@ -28,11 +28,11 @@ Zielgerät laut Nutzer: iPhone 13/14/15 (ohne Apple Intelligence), iOS 26, kein 
 | Spielkern offline auf dem iPhone (Quests, XP/Coins, Tagesabschluss, Gericht mit Regelrichter, Rat, Module) | FERTIG (TypeScript, 127 Tests) |
 | „Ohne Konto spielen“ – Cloud/Sync freiwillig | FERTIG (Web-Vorschau geprüft) |
 | Geräte-KI: Provider, Modellkatalog Qwen3 0.6B/1.7B/4B, Empfehlung nach RAM, Kontextkürzung | FERTIG (Unit-Tests) |
-| llama.rn-Anbindung, Modellmanager (Download/Pause/Fortsetzen/Löschen, Speicher), KI-Zentrale mit Leistungstest | IN ARBEIT – typgeprüft, **noch nie auf einem iPhone gelaufen** |
+| llama.rn-Anbindung, Modellmanager (Download/Pause/Fortsetzen/Löschen, Speicher), KI-Zentrale mit Leistungstest | FERTIG – auf iPhone 14 geprüft: Qwen3 1.7B lädt in 20,5 s, 16,1 Tokens/s; Vorladen im Hintergrund ergänzt |
 | KI-Chat mit Rollen + Ratssitzung, KI-Gericht auf dem iPhone | IN ARBEIT – Oberfläche in Web-Vorschau geprüft, KI nur im nativen Build |
 | Cloud-Build (GitHub Actions → unsignierte IPA) | FERTIG – erster grüner Lauf 2026-10-30 (llama.rn 0.13.0-rc.8, IPA 13,6 MB); Installation auf dem iPhone noch nicht bestätigt |
-| Installation per SideStore | GEPLANT – Einrichtung durch den Nutzer |
-| Messung auf dem Zielgerät (Ladezeit, Tokens/s, RAM, Wärme, Akku) | BLOCKIERT bis zur ersten Installation |
+| Installation per SideStore | FERTIG – vom Nutzer auf dem iPhone 14 installiert (2026-10-30) |
+| Messung auf dem Zielgerät (Ladezeit, Tokens/s, RAM, Wärme, Akku) | IN ARBEIT – Ladezeit und Tokens/s gemessen; RAM, Wärme, Akku und Qualität von Gericht/Rat stehen aus |
 | SQLite statt JSON-Speicher, Verschlüsselung, KI-Gedächtnis mit Volltextsuche | GEPLANT |
 | Widgets, Live Activities, App Intents, HealthKit | GEPLANT (brauchen native Erweiterungen im Build) |
 

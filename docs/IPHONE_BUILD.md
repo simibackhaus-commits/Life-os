@@ -38,7 +38,7 @@ Der PC wird nur zum Entwickeln gebraucht; gebaut wird auf einem kostenlosen Clou
 - **App stürzt beim Laden des Modells ab:** kleineres Modell wählen (Eco). Das 4B-Modell braucht ein Gerät mit 6 GB RAM.
 - **Build schlägt fehl:** im Actions-Lauf den roten Schritt öffnen und die letzten Zeilen kopieren – damit lässt sich der Fehler beheben.
 
-## Messwerte vom Zielgerät (bitte eintragen)
-| Gerät | Modell | Laden | Tokens/s | Bemerkung (Wärme, Akku) |
-|---|---|---|---|---|
-| | | | | |
+## Messwerte vom Zielgerät
+| Datum | Gerät | Modell | Laden | Tokens/s | Bemerkung |
+|---|---|---|---|---|---|
+| 2026-10-30 | iPhone 14 (6 GB, iOS 26) | Qwen3 1.7B (Balanced) | 20,5 s (erster Start) | 16,1 | Installation per SideStore erfolgreich; Wärme/Akku noch nicht bewertet. Seitdem lädt die App das Modell 3 s nach dem Start im Hintergrund vor |
