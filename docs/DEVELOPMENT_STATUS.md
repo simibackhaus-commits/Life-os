@@ -30,7 +30,7 @@ Zielgerät laut Nutzer: iPhone 13/14/15 (ohne Apple Intelligence), iOS 26, kein 
 | Geräte-KI: Provider, Modellkatalog Qwen3 0.6B/1.7B/4B, Empfehlung nach RAM, Kontextkürzung | FERTIG (Unit-Tests) |
 | llama.rn-Anbindung, Modellmanager (Download/Pause/Fortsetzen/Löschen, Speicher), KI-Zentrale mit Leistungstest | IN ARBEIT – typgeprüft, **noch nie auf einem iPhone gelaufen** |
 | KI-Chat mit Rollen + Ratssitzung, KI-Gericht auf dem iPhone | IN ARBEIT – Oberfläche in Web-Vorschau geprüft, KI nur im nativen Build |
-| Cloud-Build (GitHub Actions → unsignierte IPA) | IN ARBEIT – Workflow geschrieben, noch nie gelaufen (braucht GitHub-Repo des Nutzers) |
+| Cloud-Build (GitHub Actions → unsignierte IPA) | FERTIG – erster grüner Lauf 2026-10-30 (llama.rn 0.13.0-rc.8, IPA 13,6 MB); Installation auf dem iPhone noch nicht bestätigt |
 | Installation per SideStore | GEPLANT – Einrichtung durch den Nutzer |
 | Messung auf dem Zielgerät (Ladezeit, Tokens/s, RAM, Wärme, Akku) | BLOCKIERT bis zur ersten Installation |
 | SQLite statt JSON-Speicher, Verschlüsselung, KI-Gedächtnis mit Volltextsuche | GEPLANT |
